@@ -147,3 +147,21 @@ export async function trackOrderAction(fd: FormData) {
   if (!order) redirect(msg("/siparis-takip", "hata", "Sipariş bulunamadı. Sipariş numarası ve e-posta adresini kontrol edin."));
   redirect(`/siparis-takip?no=${encodeURIComponent(no)}&e=${encodeURIComponent(email)}`);
 }
+
+// ---------------------------------------------------------------- şifre sıfırlama
+
+export type ResetState = { error?: string; sent?: boolean };
+
+export async function requestResetAction(_p: ResetState, fd: FormData): Promise<ResetState> {
+  const { requestPasswordReset } = await import("@/server/password-reset");
+  const { ip } = await clientInfo();
+  await requestPasswordReset(String(fd.get("email") ?? ""), ip);
+  return { sent: true };
+}
+
+export async function resetPasswordAction(_p: ResetState, fd: FormData): Promise<ResetState> {
+  const { resetPassword } = await import("@/server/password-reset");
+  const r = await resetPassword(String(fd.get("t") ?? ""), String(fd.get("password") ?? ""), String(fd.get("confirm") ?? ""));
+  if (!r.ok) return { error: r.error };
+  redirect("/giris?ok=" + encodeURIComponent("Şifreniz yenilendi. Yeni şifrenizle giriş yapabilirsiniz."));
+}

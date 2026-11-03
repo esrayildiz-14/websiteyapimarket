@@ -122,6 +122,10 @@ model User {
   isActive         Boolean   @default(true)
   marketingConsent Boolean   @default(false)
   lastLoginAt      DateTime?
+  totpSecret        String? // şifreli (AES-256-GCM); yalnız 2FA etkinken dolu
+  totpPendingSecret String? // kurulum sırasında, ilk kod doğrulanana kadar
+  totpEnabledAt     DateTime?
+  totpLastStep      Int? // aynı kodun ikinci kez kullanılmasını engeller
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   deletedAt        DateTime?
@@ -136,6 +140,7 @@ model User {
   priceChanges       PriceHistory[]
   carts              Cart[]
   favorites          Favorite[]
+  passwordResets     PasswordResetToken[]
 
   @@index([type])
   @@map("users")
@@ -178,11 +183,28 @@ model Session {
   lastSeenAt DateTime @default(now())
   ipAddress  String?
   userAgent  String?
+  mfaPending Boolean  @default(false) // şifre doğru, iki adımlı doğrulama kodu bekleniyor
+  mfaFails   Int      @default(0)
   createdAt  DateTime @default(now())
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("sessions")
+}
+
+/// Müşteri şifre sıfırlama bağlantısı. Yalnız özeti (sha256) saklanır; tek kullanımlık ve süreli.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  ipAddress String?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("password_reset_tokens")
 }
 
 model LoginAttempt {

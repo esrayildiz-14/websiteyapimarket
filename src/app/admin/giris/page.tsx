@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentStaff } from "@/lib/auth/session";
+import Flash from "@/components/admin/Flash";
 import LoginForm from "./LoginForm";
 
 export const metadata: Metadata = { title: "Admin girişi", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 
-export default async function AdminLoginPage() {
+export default async function AdminLoginPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   if (await getCurrentStaff()) redirect("/admin");
+  const sp = await searchParams;
   return (
     <main className="login-wrap">
       <div className="login-card">
@@ -18,6 +20,7 @@ export default async function AdminLoginPage() {
           <span style={{ font: "600 12px/14px var(--font-sans)", letterSpacing: "0.18em", color: "var(--ink-muted)" }}>YÖNETİM PANELİ</span>
         </div>
         <h1 className="h3">Admin girişi</h1>
+        <Flash sp={sp} />
         <LoginForm />
         <p className="muted" style={{ margin: 0 }}>
           5 hatalı denemeden sonra hesap 15 dakika kilitlenir. Şifrenizi unuttuysanız Super Admin ile iletişime geçin.

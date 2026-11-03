@@ -23,10 +23,11 @@ const NAV: (NavItem & { perm: Permission })[] = [
   { href: "/admin/musteriler", label: "Müşteriler", group: "Satış", perm: "customer.read" },
   { href: "/admin/kampanyalar", label: "Kampanyalar", group: "Satış", perm: "campaign.write" },
   { href: "/admin/icerik", label: "Site içerikleri", group: "Site", perm: "content.write" },
+  { href: "/admin/guvenlik", label: "Hesap güvenliği (2FA)", group: "Hesabım", perm: "dashboard.view" },
 ];
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireStaff();
+  const user = await requireStaff(undefined, { allowWithoutMfa: true }); // zorunlu 2FA yönlendirmesi sayfa düzeyinde
   const items = NAV.filter((n) => can(user, n.perm)).map(({ perm: _p, ...n }) => n);
   return (
     <div className="adm">

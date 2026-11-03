@@ -21,11 +21,11 @@ export async function clientInfo() {
 }
 
 /** Yalnız server action / route handler içinden çağrılır (çerez yazar). */
-export async function createSession(userId: string, opts: { cookie?: string; hours?: number } = {}) {
+export async function createSession(userId: string, opts: { cookie?: string; hours?: number; mfaPending?: boolean } = {}) {
   const token = randomBytes(32).toString("base64url");
   const { ip, userAgent } = await clientInfo();
   const expiresAt = new Date(Date.now() + (opts.hours ?? SESSION_HOURS) * 3600_000);
-  await prisma.session.create({ data: { userId, tokenHash: sha256(token), expiresAt, ipAddress: ip, userAgent } });
+  await prisma.session.create({ data: { userId, tokenHash: sha256(token), expiresAt, ipAddress: ip, userAgent, mfaPending: opts.mfaPending ?? false } });
   (await cookies()).set(opts.cookie ?? SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -51,6 +51,7 @@ export type StaffUser = {
   roleKey: string;
   roleName: string;
   permissions: Set<string>;
+  mfaEnabled: boolean;
 };
 
 /** Geçerli admin oturumu (istek başına bir kez sorgulanır) */
@@ -61,7 +62,7 @@ export const getCurrentStaff = cache(async (): Promise<StaffUser | null> => {
     where: { tokenHash: sha256(token) },
     include: { user: { include: { role: { include: { permissions: { include: { permission: true } } } } } } },
   });
-  if (!session) return null;
+  if (!session || session.mfaPending) return null; // iki adımlı doğrulama tamamlanmamış oturum yetki vermez
   const now = Date.now();
   const idle = now - session.lastSeenAt.getTime() > IDLE_MINUTES * 60_000;
   const u = session.user;
@@ -80,17 +81,31 @@ export const getCurrentStaff = cache(async (): Promise<StaffUser | null> => {
     roleKey: u.role.key,
     roleName: u.role.name,
     permissions: new Set(all ? ["*"] : u.role.permissions.map((rp) => rp.permission.key)),
+    mfaEnabled: !!u.totpEnabledAt,
   };
 });
+
+/** Şifresi doğrulanmış, 2FA kodu bekleyen oturum (yalnız doğrulama sayfası kullanır). */
+export async function getPendingMfaSession() {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (!token) return null;
+  const s = await prisma.session.findUnique({ where: { tokenHash: sha256(token) }, include: { user: true } });
+  if (!s || !s.mfaPending || s.expiresAt.getTime() < Date.now()) return null;
+  return s;
+}
+
+/** REQUIRE_ADMIN_2FA=1 iken iki adımlı doğrulaması kapalı yönetici yalnız güvenlik sayfasını kullanabilir. */
+export const mfaRequired = () => process.env.REQUIRE_ADMIN_2FA === "1";
 
 export function can(user: StaffUser | null, permission: Permission) {
   return !!user && (user.permissions.has("*") || user.permissions.has(permission));
 }
 
 /** Sayfa ve action'ların başında: oturum yoksa girişe, yetki yoksa panoya yönlendirir. */
-export async function requireStaff(permission?: Permission): Promise<StaffUser> {
+export async function requireStaff(permission?: Permission, opts: { allowWithoutMfa?: boolean } = {}): Promise<StaffUser> {
   const user = await getCurrentStaff();
   if (!user) redirect("/admin/giris");
+  if (mfaRequired() && !user.mfaEnabled && !opts.allowWithoutMfa) redirect("/admin/guvenlik?zorunlu=1");
   if (permission && !can(user, permission)) redirect("/admin?hata=" + encodeURIComponent("Bu işlem için yetkiniz yok."));
   return user;
 }

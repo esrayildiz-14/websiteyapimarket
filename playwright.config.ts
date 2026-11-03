@@ -40,7 +40,9 @@ export default defineConfig({
       UPLOAD_DIR: "storage/test-uploads",
       TRUST_PROXY_HOPS: "1", // testler X-Forwarded-For ile farklı istemci IP'lerini taklit edebilsin
       RATE_LIMIT_ADRES: "60",
-      YEDEK_DIR: "storage/test-yedek", // yedek uyarısı testleri bu klasöre durum dosyası yazar
+      YEDEK_DIR: "storage/test-yedek",
+      EMAIL_LOG_SECRETS: "1", // testler şifre sıfırlama bağlantısını e-posta kaydından okur
+      APP_ENCRYPTION_KEY: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=", // yalnız test // yedek uyarısı testleri bu klasöre durum dosyası yazar
       PAYMENT_TEST_PROVIDER: "1", // yalnız _test veritabanında etkinleşen sahte ödeme sağlayıcısı
       IYZICO_API_KEY: "",
       IYZICO_SECRET_KEY: "",

@@ -34,6 +34,9 @@ export function LoginForm({ next }: { next: string }) {
       <button className="oy-btn oy-btn--primary oy-btn--block" type="submit" disabled={pending}>
         {pending ? "Kontrol ediliyor…" : "Giriş yap"}
       </button>
+      <a href="/sifremi-unuttum" className="muted" data-testid="forgot-link">
+        Şifremi unuttum
+      </a>
     </form>
   );
 }

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentCustomer, safeNext } from "@/lib/auth/customer";
 import { LoginForm, RegisterForm } from "@/components/shop/AuthForms";
+import Flash from "@/components/admin/Flash";
 
 export const metadata = { title: "Giriş yap veya üye ol", robots: { index: false } };
 type SP = Promise<Record<string, string | string[] | undefined>>;
@@ -12,6 +13,7 @@ export default async function LoginPage({ searchParams }: { searchParams: SP }) 
   return (
     <>
       <h1 className="h1">Giriş yap veya üye ol</h1>
+      <Flash sp={sp} />
       <div className="grid-2" style={{ alignItems: "start" }}>
         <LoginForm next={next} />
         <RegisterForm next={next} />
