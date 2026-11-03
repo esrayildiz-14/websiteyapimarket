@@ -1,0 +1,114 @@
+/* Öner Yapı Market — bileşen stilleri. Değerler tokens.css'teki değişkenlerden gelir. */
+.oy, .oy * { box-sizing: border-box; }
+.oy { font-family: var(--font-sans); color: var(--ink); font-size: 16px; line-height: 24px; }
+.oy :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* ---------- Button ---------- */
+.oy-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: 44px; padding: 0 var(--space-4); border-radius: var(--radius-md); border: 1px solid transparent;
+  font: 600 15px/20px var(--font-sans); cursor: pointer; text-decoration: none; white-space: nowrap;
+  transition: background-color .15s, border-color .15s, color .15s; }
+.oy-btn svg { width: 18px; height: 18px; flex: none; }
+.oy-btn--primary { background: var(--orange-500); color: var(--navy-900); }
+.oy-btn--primary:hover { background: var(--orange-600); }
+.oy-btn--secondary { background: var(--navy-900); color: var(--ink-inverse); }
+.oy-btn--secondary:hover { background: var(--navy-700); }
+.oy-btn--outline { background: var(--surface); color: var(--navy-900); border-color: var(--line-strong); }
+.oy-btn--outline:hover { border-color: var(--navy-900); }
+.oy-btn--ghost { background: transparent; color: var(--navy-900); }
+.oy-btn--ghost:hover { background: var(--navy-100); }
+.oy-btn--sm { min-height: 36px; padding: 0 var(--space-3); font-size: 14px; }
+.oy-btn--lg { min-height: 52px; padding: 0 var(--space-6); font-size: 16px; }
+.oy-btn--block { width: 100%; }
+.oy-btn[disabled], .oy-btn--disabled { background: var(--surface-alt); color: var(--ink-muted); border-color: var(--line); cursor: not-allowed; }
+
+/* ---------- Badge ---------- */
+.oy-badge { display: inline-flex; align-items: center; gap: var(--space-1); padding: 2px 8px; border-radius: var(--radius-sm);
+  font: 500 12px/16px var(--font-sans); white-space: nowrap; }
+.oy-badge svg { width: 12px; height: 12px; }
+.oy-badge--stock { color: var(--success); background: transparent; padding-left: 0; }
+.oy-badge--low { color: var(--warning); background: transparent; padding-left: 0; }
+.oy-badge--out { color: var(--danger); background: transparent; padding-left: 0; }
+.oy-badge--discount { background: var(--orange-500); color: var(--navy-900); font-weight: 700; }
+.oy-badge--new { background: var(--navy-900); color: var(--ink-inverse); font-weight: 600; }
+.oy-badge--heavy { background: var(--navy-100); color: var(--navy-900); }
+.oy-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; }
+
+/* ---------- Price ---------- */
+.oy-price { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 var(--space-2); }
+.oy-price__now { font: 700 22px/26px var(--font-sans); color: var(--ink); font-variant-numeric: tabular-nums; }
+.oy-price__now--sale { color: var(--orange-700); }
+.oy-price__old { font-size: 14px; color: var(--ink-muted); text-decoration: line-through; }
+.oy-price__note { font-size: 12px; color: var(--ink-muted); width: 100%; }
+
+/* ---------- Product image placeholder ---------- */
+.oy-ph { position: relative; display: grid; place-items: center; aspect-ratio: 1 / 1; background: var(--surface-alt);
+  color: var(--line-strong); border-radius: var(--radius-md); overflow: hidden; }
+.oy-ph svg { width: 42%; height: 42%; }
+
+/* ---------- Product card ---------- */
+.oy-pcard { position: relative; display: flex; flex-direction: column; background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3); gap: var(--space-2);
+  transition: box-shadow .15s, border-color .15s; height: 100%; }
+.oy-pcard:hover { box-shadow: var(--shadow-card); border-color: transparent; }
+.oy-pcard__media { display: block; position: relative; }
+.oy-pcard__tags { position: absolute; top: 8px; left: 8px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.oy-pcard__fav { position: absolute; top: 6px; right: 6px; width: 36px; height: 36px; border-radius: 50%; border: 0;
+  background: var(--surface); color: var(--navy-900); display: grid; place-items: center; cursor: pointer; }
+.oy-pcard__fav svg { width: 18px; height: 18px; }
+.oy-pcard__brand { font: 600 12px/16px var(--font-sans); color: var(--ink-muted); text-transform: uppercase; letter-spacing: .04em; }
+.oy-pcard__name { font: 500 14px/20px var(--font-sans); color: var(--ink); text-decoration: none;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 40px; }
+.oy-pcard__name:hover { text-decoration: underline; }
+.oy-pcard__meta { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); margin-top: auto; }
+.oy-pcard__unit { font-size: 12px; color: var(--ink-muted); }
+
+/* ---------- Category card ---------- */
+.oy-ccard { display: flex; flex-direction: column; gap: var(--space-2); text-decoration: none; color: var(--ink); }
+.oy-ccard__tile { display: grid; place-items: center; aspect-ratio: 4 / 3; border-radius: var(--radius-md);
+  background: var(--surface-alt); color: var(--navy-900); border: 1px solid var(--line); transition: border-color .15s, background .15s; }
+.oy-ccard__tile svg { width: 44px; height: 44px; }
+.oy-ccard:hover .oy-ccard__tile { border-color: var(--orange-500); background: var(--orange-50); }
+.oy-ccard__name { font: 600 15px/20px var(--font-sans); }
+.oy-ccard__count { font-size: 12px; color: var(--ink-muted); }
+
+/* ---------- Field ---------- */
+.oy-field { display: flex; flex-direction: column; gap: 6px; }
+.oy-field__label { font: 600 14px/20px var(--font-sans); color: var(--ink); }
+.oy-field__hint { font-size: 12px; color: var(--ink-muted); }
+.oy-input, .oy-select { width: 100%; min-height: 44px; padding: 0 var(--space-3); border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font: 400 16px/24px var(--font-sans); }
+textarea.oy-input { padding: var(--space-2) var(--space-3); min-height: 88px; }
+.oy-input:focus, .oy-select:focus { outline: 2px solid var(--focus); outline-offset: 0; border-color: var(--focus); }
+.oy-field--error .oy-input { border-color: var(--danger); }
+.oy-field__error { font-size: 12px; color: var(--danger); display: flex; gap: 4px; align-items: center; }
+.oy-check { display: flex; gap: var(--space-2); align-items: flex-start; font-size: 14px; line-height: 20px; }
+.oy-check input { width: 18px; height: 18px; margin-top: 1px; accent-color: var(--navy-900); }
+
+/* ---------- Quantity stepper ---------- */
+.oy-qty { display: inline-flex; align-items: center; border: 1px solid var(--line-strong); border-radius: var(--radius-md); height: 44px; }
+.oy-qty button { width: 40px; height: 100%; border: 0; background: transparent; font-size: 20px; color: var(--navy-900); cursor: pointer; }
+.oy-qty button:hover { background: var(--surface-alt); }
+.oy-qty input { width: 48px; height: 100%; border: 0; text-align: center; font: 600 16px var(--font-sans); color: var(--ink); background: transparent; }
+.oy-qty--sm { height: 36px; } .oy-qty--sm button { width: 32px; } .oy-qty--sm input { width: 36px; font-size: 14px; }
+
+/* ---------- Breadcrumb ---------- */
+.oy-crumbs { display: flex; flex-wrap: wrap; gap: 6px; font-size: 13px; color: var(--ink-muted); list-style: none; padding: 0; margin: 0; }
+.oy-crumbs a { color: var(--ink-muted); text-decoration: none; } .oy-crumbs a:hover { color: var(--ink); text-decoration: underline; }
+.oy-crumbs li + li::before { content: "/"; margin-right: 6px; color: var(--line-strong); }
+.oy-crumbs [aria-current] { color: var(--ink); font-weight: 600; }
+
+/* ---------- Checkout steps ---------- */
+.oy-steps { display: flex; gap: var(--space-2); list-style: none; padding: 0; margin: 0; counter-reset: s; }
+.oy-steps li { flex: 1; display: flex; align-items: center; gap: var(--space-2); font: 600 14px/20px var(--font-sans); color: var(--ink-muted);
+  padding-top: var(--space-2); border-top: 3px solid var(--line); counter-increment: s; }
+.oy-steps li::before { content: counter(s); width: 24px; height: 24px; flex: none; border-radius: 50%; display: grid; place-items: center;
+  font-size: 12px; background: var(--surface-alt); color: var(--ink-muted); border: 1px solid var(--line-strong); }
+.oy-steps li[data-state="done"] { color: var(--ink); border-top-color: var(--navy-900); }
+.oy-steps li[data-state="done"]::before { content: "✓"; background: var(--navy-900); color: var(--ink-inverse); border-color: var(--navy-900); }
+.oy-steps li[data-state="current"] { color: var(--ink); border-top-color: var(--orange-500); }
+.oy-steps li[data-state="current"]::before { background: var(--orange-500); color: var(--navy-900); border-color: var(--orange-500); }
+
+/* ---------- Shipping profile chip ---------- */
+.oy-ship { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: var(--ink-muted); }
+.oy-ship svg { width: 16px; height: 16px; color: var(--navy-900); }

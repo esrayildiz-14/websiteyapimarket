@@ -1,0 +1,46 @@
+// Yetki anahtarları ve rollerin varsayılan yetkileri. Seed ve arayüz aynı listeyi kullanır.
+
+export const PERMISSIONS = {
+  "dashboard.view": "Panoyu görüntüleme",
+  "product.read": "Ürünleri görüntüleme",
+  "product.write": "Ürün ekleme / düzenleme / silme",
+  "product.purchase_price": "Alış fiyatını görme ve değiştirme",
+  "price.write": "Fiyat ve indirimli fiyat değiştirme",
+  "category.write": "Kategori ve alt kategori yönetimi",
+  "brand.write": "Marka yönetimi",
+  "stock.write": "Stok girişi ve düzeltme",
+  "order.read": "Siparişleri görüntüleme",
+  "order.update": "Sipariş durumu ve kargo takip no",
+  "order.refund": "İptal ve iade",
+  "shipping.write": "Kargo firmaları, profilleri ve ücretleri",
+  "customer.read": "Müşterileri görüntüleme",
+  "campaign.write": "Kampanya ve kupon yönetimi",
+  "content.write": "Banner, sayfa ve SSS yönetimi",
+  "user.manage": "Admin kullanıcılarını yönetme",
+  "audit.view": "Denetim kayıtlarını görme",
+} as const;
+
+export type Permission = keyof typeof PERMISSIONS;
+
+export const ROLES: { key: string; name: string; permissions: Permission[] | "ALL" }[] = [
+  { key: "SUPER_ADMIN", name: "Super Admin", permissions: "ALL" },
+  {
+    key: "ADMIN",
+    name: "Admin",
+    permissions: [
+      "dashboard.view", "product.read", "product.write", "product.purchase_price", "price.write", "category.write",
+      "brand.write", "stock.write", "order.read", "order.update", "order.refund", "shipping.write", "customer.read",
+      "campaign.write", "content.write", "audit.view",
+    ],
+  },
+  {
+    key: "PRODUCT_MANAGER",
+    name: "Ürün Yöneticisi",
+    permissions: ["dashboard.view", "product.read", "product.write", "price.write", "category.write", "brand.write", "stock.write"],
+  },
+  {
+    key: "ORDER_STAFF",
+    name: "Sipariş Personeli",
+    permissions: ["dashboard.view", "product.read", "order.read", "order.update"],
+  },
+];

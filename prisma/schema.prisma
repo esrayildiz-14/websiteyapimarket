@@ -1,0 +1,819 @@
+// Öner Yapı Market — veritabanı şeması (PostgreSQL + Prisma 7)
+// Tablo adları snake_case. Para alanları Decimal(12,2), KDV dahil ₺.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------- enum'lar
+
+enum UserType {
+  CUSTOMER
+  STAFF
+}
+
+enum ProductStatus {
+  ACTIVE
+  PASSIVE
+}
+
+enum SaleUnit {
+  ADET
+  PAKET
+  KUTU
+  TORBA
+  KOVA
+  BOY
+  METRE
+  METREKARE
+  TON
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PREPARING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURN_REQUESTED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CARD
+  BANK_TRANSFER
+}
+
+enum MovementType {
+  PURCHASE_IN
+  SALE_OUT
+  CANCEL_IN
+  RETURN_IN
+  ADJUSTMENT
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED
+}
+
+enum DiscountTarget {
+  ALL
+  PRODUCT
+  CATEGORY
+  BRAND
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum ShipmentStatus {
+  PREPARING // hazırlanıyor
+  SHIPPED // kargoya verildi
+  IN_TRANSIT // yolda / transfer
+  OUT_FOR_DELIVERY // dağıtımda
+  DELIVERED // teslim edildi
+  RETURNED // iade / teslim edilemedi
+}
+
+enum EmailStatus {
+  LOGGED // gönderim yapılandırılmadı, yalnız kayda yazıldı
+  SENT
+  FAILED
+}
+
+enum PageType {
+  CORPORATE
+  LEGAL
+}
+
+enum ShippingPacking {
+  COMBINED // standart: tek kolide birleşir
+  PER_PIECE // ağır / hacimli: parça başı
+}
+
+// ---------------------------------------------------------------- kimlik
+
+model User {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  passwordHash     String
+  firstName        String
+  lastName         String
+  phone            String?
+  type             UserType  @default(CUSTOMER)
+  roleId           String?
+  isActive         Boolean   @default(true)
+  marketingConsent Boolean   @default(false)
+  lastLoginAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  role               Role?                @relation(fields: [roleId], references: [id])
+  sessions           Session[]
+  addresses          Address[]
+  orders             Order[]
+  inventoryMovements InventoryMovement[]
+  statusChanges      OrderStatusHistory[]
+  auditLogs          AuditLog[]
+  priceChanges       PriceHistory[]
+  carts              Cart[]
+  favorites          Favorite[]
+
+  @@index([type])
+  @@map("users")
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  name        String
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  description String?
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  lastSeenAt DateTime @default(now())
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  ipAddress String
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([ipAddress, createdAt])
+  @@map("login_attempts")
+}
+
+// ---------------------------------------------------------------- katalog
+
+model Category {
+  id                       String    @id @default(cuid())
+  name                     String
+  slug                     String    @unique
+  description              String?
+  imageUrl                 String?
+  parentId                 String?
+  sortOrder                Int       @default(0)
+  isActive                 Boolean   @default(true)
+  defaultShippingProfileId String?
+  seoTitle                 String?
+  seoDescription           String?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  parent                 Category?        @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children               Category[]       @relation("CategoryTree")
+  defaultShippingProfile ShippingProfile? @relation(fields: [defaultShippingProfileId], references: [id], onDelete: SetNull)
+  products               Product[]
+
+  @@index([parentId, sortOrder])
+  @@map("categories")
+}
+
+model Brand {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  slug      String    @unique
+  logoUrl   String?
+  description String?
+  sortOrder Int       @default(0)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  products  Product[]
+
+  @@map("brands")
+}
+
+model Product {
+  id                String        @id @default(cuid())
+  name              String
+  slug              String        @unique
+  sku               String        @unique
+  barcode           String?       @unique
+  categoryId        String
+  brandId           String?
+  shortDescription  String?
+  description       String?
+  specs             Json          @default("[]") // [{ "label": "Güç", "value": "700 W" }]
+  price             Decimal       @db.Decimal(12, 2)
+  salePrice         Decimal?      @db.Decimal(12, 2)
+  purchasePrice     Decimal?      @db.Decimal(12, 2)
+  vatRate           Int           @default(20)
+  saleUnit          SaleUnit      @default(ADET)
+  model             String? // üretici model kodu
+  weightKg          Decimal       @db.Decimal(10, 3)
+  widthCm           Decimal       @db.Decimal(10, 1)
+  heightCm          Decimal       @db.Decimal(10, 1)
+  lengthCm          Decimal       @db.Decimal(10, 1)
+  shippingProfileId String
+  handlingDays      Int           @default(2)
+  freeShipping      Boolean       @default(false) // bu ürün için kargo ücretsiz
+  status            ProductStatus @default(PASSIVE)
+  isFeatured        Boolean       @default(false)
+  soldCount         Int           @default(0)
+  seoTitle          String?
+  seoDescription    String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  deletedAt         DateTime?
+
+  category           Category            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  brand              Brand?              @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  shippingProfile    ShippingProfile     @relation(fields: [shippingProfileId], references: [id], onDelete: Restrict)
+  images             ProductImage[]
+  variants           ProductVariant[]
+  inventory          Inventory?
+  inventoryMovements InventoryMovement[]
+  orderItems         OrderItem[]
+  priceHistory       PriceHistory[]
+  cartItems          CartItem[]
+  favorites          Favorite[]
+
+  @@index([status, deletedAt, categoryId])
+  @@index([brandId])
+  @@map("products")
+}
+
+model ProductImage {
+  id         String   @id @default(cuid())
+  productId  String
+  url        String
+  storageKey String
+  alt        String?
+  sortOrder  Int      @default(0) // 0 = kapak
+  createdAt  DateTime @default(now())
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, sortOrder])
+  @@map("product_images")
+}
+
+// Varyant: aynı ürünün renk / ölçü / ambalaj seçenekleri. Varyantı olmayan ürün, ürün stoğuyla satılır.
+model ProductVariant {
+  id         String   @id @default(cuid())
+  productId  String
+  name       String // "Beyaz / 2,5 L"
+  sku        String   @unique
+  barcode    String?  @unique
+  attributes Json     @default("{}") // { "Renk": "Beyaz", "Ambalaj": "2,5 L" }
+  price      Decimal? @db.Decimal(12, 2) // boşsa ürün fiyatı
+  salePrice  Decimal? @db.Decimal(12, 2)
+  weightKg   Decimal? @db.Decimal(10, 3) // boşsa ürün ağırlığı
+  isActive   Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  product            Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  inventory          Inventory?
+  inventoryMovements InventoryMovement[]
+  cartItems          CartItem[]
+  orderItems         OrderItem[]
+
+  @@index([productId, sortOrder])
+  @@map("product_variants")
+}
+
+// Envanter: satılabilir her kalem (ürün veya varyant) için tek satır.
+// Kural: productId veya variantId'den YALNIZ biri dolu (uygulama + CHECK kısıtı).
+// available = quantity - reserved. reserved: ödemesi bekleyen siparişlere ayrılan adet.
+model Inventory {
+  id        String   @id @default(cuid())
+  productId String?  @unique
+  variantId String?  @unique
+  quantity  Int      @default(0)
+  reserved  Int      @default(0)
+  minStock  Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  product Product?        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@map("inventory")
+}
+
+model PriceHistory {
+  id          String   @id @default(cuid())
+  productId   String
+  price       Decimal  @db.Decimal(12, 2)
+  salePrice   Decimal? @db.Decimal(12, 2)
+  changedById String?
+  createdAt   DateTime @default(now())
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  changedBy   User?    @relation(fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([productId, createdAt])
+  @@map("price_history")
+}
+
+model TaxRate {
+  id        String  @id @default(cuid())
+  name      String
+  rate      Int     @unique
+  isDefault Boolean @default(false)
+
+  @@map("tax_rates")
+}
+
+// ---------------------------------------------------------------- stok
+
+model InventoryMovement {
+  id         String       @id @default(cuid())
+  productId  String
+  variantId  String?
+  type       MovementType
+  quantity   Int // giriş +, çıkış −
+  stockAfter Int
+  orderId    String?
+  userId     String?
+  note       String?
+  createdAt  DateTime     @default(now())
+
+  product Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  order   Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([productId, createdAt])
+  @@map("inventory_movements")
+}
+
+// ---------------------------------------------------------------- kargo
+
+model CargoCompany {
+  id                  String     @id @default(cuid())
+  name                String     @unique
+  trackingUrlTemplate String? // "https://.../takip?no={no}"
+  agreementNote       String? // anlaşma durumu (ASM-02)
+  isActive            Boolean    @default(true)
+  sortOrder           Int        @default(0)
+  shipments           Shipment[]
+  shippingMethods     ShippingMethod[]
+
+  @@map("cargo_companies")
+}
+
+model ShippingProfile {
+  id                   String          @id @default(cuid())
+  code                 String          @unique // STD, AGIR, HACIM
+  name                 String
+  packing              ShippingPacking
+  baseIncludes         Decimal         @db.Decimal(10, 2) // taban ücrete dahil kg/desi (ağır/hacimli)
+  basePrice            Decimal         @db.Decimal(12, 2)
+  unitPrice            Decimal         @db.Decimal(12, 2) // fazlası için kg/desi başı
+  freeShippingEligible Boolean         @default(false)
+  transitDaysMin       Int
+  transitDaysMax       Int
+  deliveryNote         String?
+  sortOrder            Int             @default(0)
+
+  rates      ShippingRate[]
+  products   Product[]
+  categories Category[]
+
+  @@map("shipping_profiles")
+}
+
+// Standart profil için ağırlık/desi kademeleri
+model ShippingRate {
+  id        String          @id @default(cuid())
+  profileId String
+  minWeight Decimal         @db.Decimal(10, 2)
+  maxWeight Decimal         @db.Decimal(10, 2)
+  price     Decimal         @db.Decimal(12, 2)
+  profile   ShippingProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, minWeight])
+  @@map("shipping_rates")
+}
+
+// Müşterinin ödeme adımında gördüğü teslimat seçeneği. Ücret ürünlerin kargo profillerinden hesaplanır;
+// extraFee yöntem için sabit ek ücrettir (ör. randevulu teslimat). Yurt dışı / mağazadan teslim YOK.
+model ShippingMethod {
+  id             String        @id @default(cuid())
+  code           String        @unique
+  name           String
+  description    String?
+  cargoCompanyId String?
+  extraFee       Decimal       @default(0) @db.Decimal(12, 2)
+  isActive       Boolean       @default(true)
+  sortOrder      Int           @default(0)
+  cargoCompany   CargoCompany? @relation(fields: [cargoCompanyId], references: [id], onDelete: SetNull)
+  orders         Order[]
+
+  @@map("shipping_methods")
+}
+
+// ---------------------------------------------------------------- adres sözlüğü (81 il)
+model Province {
+  id        Int        @id // plaka kodu 1–81
+  name      String     @unique
+  districts District[]
+  addresses Address[]
+
+  @@map("provinces")
+}
+
+model District {
+  id            Int            @id @default(autoincrement())
+  provinceId    Int
+  name          String
+  province      Province       @relation(fields: [provinceId], references: [id], onDelete: Cascade)
+  neighborhoods Neighborhood[]
+  addresses     Address[]
+
+  @@unique([provinceId, name])
+  @@map("districts")
+}
+
+model Neighborhood {
+  id         Int      @id @default(autoincrement())
+  districtId Int
+  name       String
+  postalCode String
+  district   District @relation(fields: [districtId], references: [id], onDelete: Cascade)
+
+  @@unique([districtId, name])
+  @@index([postalCode])
+  @@map("neighborhoods")
+}
+
+// ---------------------------------------------------------------- müşteri adresi
+
+model Address {
+  id           String   @id @default(cuid())
+  userId       String
+  title        String // "Ev", "İş"
+  fullName     String
+  phone        String
+  provinceId   Int
+  districtId   Int
+  neighborhood String // listeden seçilir ya da elle yazılır
+  postalCode   String
+  line         String // cadde, sokak, bina, daire
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime? // geçmiş siparişler adresi kopya olarak tutar
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  province     Province @relation(fields: [provinceId], references: [id], onDelete: Restrict)
+  district     District @relation(fields: [districtId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+// ---------------------------------------------------------------- sipariş
+
+model Order {
+  id              String        @id @default(cuid())
+  orderNumber     String        @unique
+  userId          String?
+  status          OrderStatus   @default(PENDING_PAYMENT)
+  paymentMethod   PaymentMethod
+  customerName    String
+  customerEmail   String
+  customerPhone   String
+  shippingAddress Json
+  billingAddress  Json
+  subtotal        Decimal       @db.Decimal(12, 2)
+  discountTotal   Decimal       @default(0) @db.Decimal(12, 2)
+  shippingTotal   Decimal       @default(0) @db.Decimal(12, 2)
+  vatTotal        Decimal       @db.Decimal(12, 2)
+  grandTotal      Decimal       @db.Decimal(12, 2)
+  couponCode      String?
+  shippingMethodId String?
+  shippingBreakdown Json? // sunucuda hesaplanan kargo dökümü (profil bazında)
+  reservationExpiresAt DateTime? // ödeme bekleyen siparişte stok ayırmasının bittiği an
+  customerNote    String?
+  adminNote       String?
+  isDemo          Boolean       @default(false) // test/demo verisi, gerçek siparişten ayrı
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  paidAt          DateTime?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  cancelledAt     DateTime?
+
+  user               User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  shippingMethod     ShippingMethod?      @relation(fields: [shippingMethodId], references: [id], onDelete: SetNull)
+  payments           Payment[]
+  emails             EmailLog[]
+  items              OrderItem[]
+  shipments          Shipment[]
+  statusHistory      OrderStatusHistory[]
+  inventoryMovements InventoryMovement[]
+
+  @@index([status, createdAt])
+  @@index([userId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                  String  @id @default(cuid())
+  orderId             String
+  productId           String?
+  variantId           String?
+  variantName         String?
+  productName         String
+  sku                 String
+  unitPrice           Decimal @db.Decimal(12, 2)
+  vatRate             Int
+  quantity            Int
+  lineTotal           Decimal @db.Decimal(12, 2)
+  shippingProfileCode String
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model Shipment {
+  id             String        @id @default(cuid())
+  orderId        String
+  profileCode    String
+  description    String
+  chargedFee     Decimal       @db.Decimal(12, 2)
+  cargoCompanyId String?
+  trackingNumber String?
+  status         ShipmentStatus @default(PREPARING)
+  shippedAt      DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime      @default(now())
+
+  order        Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  cargoCompany CargoCompany? @relation(fields: [cargoCompanyId], references: [id], onDelete: SetNull)
+  events       ShipmentEvent[]
+
+  @@index([orderId])
+  @@index([trackingNumber])
+  @@map("shipments")
+}
+
+model ShipmentEvent {
+  id          String         @id @default(cuid())
+  shipmentId  String
+  status      ShipmentStatus
+  note        String?
+  changedById String?
+  createdAt   DateTime       @default(now())
+  shipment    Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, createdAt])
+  @@map("shipment_events")
+}
+
+// Ödeme denemeleri. Sipariş yalnız SUCCESS ve sağlayıcıdan sunucu tarafında doğrulanmış kayıtla "ödendi" olur.
+model Payment {
+  id                String        @id @default(cuid())
+  orderId           String
+  provider          String // "IYZICO"
+  status            PaymentStatus @default(PENDING)
+  amount            Decimal       @db.Decimal(12, 2)
+  currency          String        @default("TRY")
+  conversationId    String        @unique
+  providerToken     String?       @unique // iyzico checkout form token
+  providerPaymentId String?
+  isTest            Boolean // sandbox ortamında mı
+  errorCode         String?
+  errorMessage      String?
+  rawResponse       Json?
+  createdAt         DateTime      @default(now())
+  completedAt       DateTime?
+  order             Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@map("payments")
+}
+
+// ---------------------------------------------------------------- sepet & favori
+model Cart {
+  id        String     @id @default(cuid())
+  token     String     @unique // misafir sepeti çerez anahtarı (sha256)
+  userId    String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+
+  @@index([userId])
+  @@map("carts")
+}
+
+model CartItem {
+  id        String          @id @default(cuid())
+  cartId    String
+  lineKey   String // productId veya productId:variantId — aynı kalem tek satır
+  productId String
+  variantId String?
+  quantity  Int
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  cart      Cart            @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, lineKey])
+  @@map("cart_items")
+}
+
+model Favorite {
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([userId, productId])
+  @@map("favorites")
+}
+
+// Müşteriye giden e-postalar. SMTP tanımlı değilse LOGGED olarak saklanır, gönderilmez.
+model EmailLog {
+  id        String      @id @default(cuid())
+  toEmail   String
+  subject   String
+  body      String
+  template  String
+  status    EmailStatus
+  error     String?
+  orderId   String?
+  createdAt DateTime    @default(now())
+  order     Order?      @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([createdAt])
+  @@map("email_logs")
+}
+
+model OrderStatusHistory {
+  id          String       @id @default(cuid())
+  orderId     String
+  fromStatus  OrderStatus?
+  toStatus    OrderStatus
+  note        String?
+  changedById String?
+  createdAt   DateTime     @default(now())
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedBy   User?        @relation(fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("order_status_history")
+}
+
+// ---------------------------------------------------------------- kampanya
+
+model Discount {
+  id         String         @id @default(cuid())
+  name       String
+  type       DiscountType
+  value      Decimal        @db.Decimal(12, 2)
+  target     DiscountTarget
+  targetId   String? // ürün / kategori / marka id
+  startsAt   DateTime
+  endsAt     DateTime
+  isActive   Boolean        @default(true)
+  createdAt  DateTime       @default(now())
+
+  @@index([isActive, startsAt, endsAt])
+  @@map("discounts")
+}
+
+model Coupon {
+  id            String       @id @default(cuid())
+  code          String       @unique
+  type          DiscountType
+  value         Decimal      @db.Decimal(12, 2)
+  minOrderTotal Decimal?     @db.Decimal(12, 2)
+  maxDiscount   Decimal?     @db.Decimal(12, 2)
+  usageLimit    Int?
+  perUserLimit  Int?
+  usedCount     Int          @default(0)
+  startsAt      DateTime?
+  endsAt        DateTime?
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+
+  @@map("coupons")
+}
+
+// ---------------------------------------------------------------- site içerikleri
+
+model Banner {
+  id             String    @id @default(cuid())
+  title          String
+  subtitle       String?
+  imageUrl       String?
+  storageKey     String?
+  linkUrl        String?
+  buttonText     String?
+  sortOrder      Int       @default(0)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("banners")
+}
+
+model Page {
+  id             String   @id @default(cuid())
+  slug           String   @unique
+  type           PageType
+  title          String
+  content        String
+  isPublished    Boolean  @default(false)
+  legalApproved  Boolean  @default(false) // yasal metin hukukçu onaylı mı (FR-LEG-001)
+  updatedAt      DateTime @updatedAt
+
+  @@map("pages")
+}
+
+model Faq {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  groupName String?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+
+  @@map("faqs")
+}
+
+model SiteSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

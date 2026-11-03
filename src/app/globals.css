@@ -1,0 +1,13 @@
+@import "../styles/tokens.css";
+@import "../styles/components.css";
+@import "../styles/admin.css";
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { background: var(--surface); color: var(--ink); font-family: var(--font-sans); font-size: 16px; line-height: 24px; }
+a { color: var(--navy-900); }
+a:hover { color: var(--navy-700); }
+img { max-width: 100%; height: auto; }
+h1, h2, h3 { margin: 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.container { max-width: 1280px; margin: 0 auto; padding: 0 clamp(16px, 3vw, 32px); }
