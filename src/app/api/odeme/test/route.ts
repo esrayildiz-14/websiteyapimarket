@@ -10,6 +10,11 @@ export async function POST(req: Request) {
   const outcome = String(fd.get("sonuc") ?? "");
   const p = await prisma.payment.findUnique({ where: { providerToken: token }, include: { order: true } });
   if (!p) return new Response("Bulunamadı", { status: 404 });
+  if (outcome === "sessiz") {
+    // Sağlayıcıda ödeme alındı ama siteye bildirim ulaşmadı (tarayıcı kapandı / bağlantı koptu) senaryosu
+    await prisma.payment.update({ where: { id: p.id }, data: { rawResponse: { testProviderStatus: "SUCCESS" } } });
+    return Response.redirect(new URL(`/siparis/${p.order.orderNumber}/sonuc`, req.url), 303);
+  }
   await finalizePayment(p.id, {
     success: outcome === "basarili" || outcome === "tutar",
     providerPaymentId: "test-" + p.id,

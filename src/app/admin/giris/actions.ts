@@ -17,7 +17,8 @@ export async function loginAction(_prev: LoginState, fd: FormData): Promise<Logi
   if (!result.ok) return { error: result.error, email };
   const user = await prisma.user.findUniqueOrThrow({ where: { id: result.userId }, select: { totpEnabledAt: true } });
   if (user.totpEnabledAt) {
-    // Şifre doğru; kod doğrulanana kadar yetkisiz, 10 dakikalık bekleyen oturum
+    // Şifre doğru; kod doğrulanana kadar yetkisiz, 10 dakikalık bekleyen oturum (yarım kalmış eskiler silinir)
+    await prisma.session.deleteMany({ where: { userId: result.userId, mfaPending: true } });
     await createSession(result.userId, { mfaPending: true, hours: 1 / 6 });
     redirect("/admin/giris/dogrula");
   }

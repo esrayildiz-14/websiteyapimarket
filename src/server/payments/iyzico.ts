@@ -21,7 +21,11 @@ async function call<T>(path: string, payload: unknown): Promise<T> {
   const cfg = iyzicoConfig();
   if (!cfg) throw new Error("iyzico anahtarları tanımlı değil.");
   const body = JSON.stringify(payload);
-  const res = await fetch(cfg.baseUrl + path, { method: "POST", headers: authHeaders(cfg.apiKey, cfg.secretKey, path, body), body, cache: "no-store" });
+  // Zaman aşımı: iyzico yanıt vermezse istek 20 sn sonra kesilir; çağıran taraf ödemeyi "bekliyor" bırakır ve sonra mutabakat yapılır.
+  const res = await fetch(cfg.baseUrl + path, {
+    method: "POST", headers: authHeaders(cfg.apiKey, cfg.secretKey, path, body), body, cache: "no-store", signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok && res.status >= 500) throw new Error(`iyzico geçici hata (HTTP ${res.status}).`);
   return (await res.json()) as T;
 }
 

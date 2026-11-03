@@ -30,6 +30,9 @@ export default async function TestProvider({ searchParams }: { searchParams: SP 
         <button className="oy-btn oy-btn--outline" name="sonuc" value="tutar" type="submit">
           Eksik tutar
         </button>
+        <button className="oy-btn oy-btn--outline" name="sonuc" value="sessiz" type="submit">
+          Ödendi, bildirim gelmedi
+        </button>
       </form>
     </div>
   );

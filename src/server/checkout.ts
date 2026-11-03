@@ -7,7 +7,7 @@ import type { ShippingPackage } from "@/lib/shipping";
 import { cartView } from "./cart";
 import { commitSale, release, reserve, StockError } from "./inventory";
 import { sendEmail } from "./email";
-import { paymentProvider } from "./payments";
+import { paymentProvider, providerPaymentState } from "./payments";
 import { iyzicoConfig, initializeCheckoutForm, retrieveCheckoutForm } from "./payments/iyzico";
 import type { AddressSnapshot } from "./address-book";
 
@@ -28,6 +28,9 @@ function snapshotOf(a: { fullName: string; phone: string; neighborhood: string; 
 }
 
 export type PlaceResult = { ok: true; redirect: string } | { ok: false; message: string };
+type AddrRow = NonNullable<Awaited<ReturnType<typeof loadAddress>>>;
+const loadAddress = (id: string, userId: string) =>
+  prisma.address.findFirst({ where: { id, userId, deletedAt: null }, include: { province: true, district: true } });
 
 /**
  * Siparişi oluşturur ve ödeme sayfasına yönlendirme adresini döndürür.
@@ -46,16 +49,35 @@ export async function placeOrder(
   if (!provider) return { ok: false, message: "Ödeme altyapısı henüz yapılandırılmadı. Şu an ödeme alınamıyor; siparişiniz oluşturulmadı." };
 
   const [addr, billing, method] = await Promise.all([
-    prisma.address.findFirst({ where: { id: input.addressId, userId: customer.id, deletedAt: null }, include: { province: true, district: true } }),
-    input.billingAddressId
-      ? prisma.address.findFirst({ where: { id: input.billingAddressId, userId: customer.id, deletedAt: null }, include: { province: true, district: true } })
-      : null,
+    loadAddress(input.addressId, customer.id),
+    input.billingAddressId ? loadAddress(input.billingAddressId, customer.id) : null,
     prisma.shippingMethod.findFirst({ where: { id: input.shippingMethodId, isActive: true } }),
   ]);
   if (!addr) return { ok: false, message: "Teslimat adresi seçin." };
   if (input.billingAddressId && !billing) return { ok: false, message: "Fatura adresi bulunamadı." };
   if (!method) return { ok: false, message: "Teslimat yöntemi seçin." };
 
+  // Önceki ödeme bekleyen sipariş(ler) kapatılır; ödemesi aslında alınmışsa yeni sipariş açılmaz.
+  const paidBefore = await settlePreviousPending(customer.id);
+  if (paidBefore)
+    return { ok: false, message: `${paidBefore} numaralı önceki siparişinizin ödemesi alınmış. Yeni sipariş oluşturulmadı; siparişlerinizi Hesabım sayfasından görebilirsiniz.` };
+  return createOrderAndPay(customer, input, baseUrl, clientIp, provider, addr, billing, method);
+}
+
+class DuplicateOrder extends Error {}
+/** Aynı müşterinin bu kadar saniye içindeki ikinci sipariş isteği (çift tıklama, iki sekme) reddedilir. */
+const DUPLICATE_WINDOW_SEC = 15;
+
+async function createOrderAndPay(
+  customer: Customer,
+  input: { couponCode?: string | null; note?: string | null },
+  baseUrl: string,
+  clientIp: string,
+  provider: "iyzico" | "test",
+  addr: AddrRow,
+  billing: AddrRow | null,
+  method: { id: string },
+): Promise<PlaceResult> {
   const view = await cartView({ couponCode: input.couponCode, shippingMethodId: method.id, userId: customer.id });
   if (!view.lines.length) return { ok: false, message: "Sepetiniz boş." };
   if (view.hasProblems) return { ok: false, message: "Sepetinizde stokta olmayan veya satıştan kalkan ürün var. Lütfen sepeti kontrol edin." };
@@ -69,6 +91,12 @@ export async function placeOrder(
   let order;
   try {
     order = await prisma.$transaction(async (tx) => {
+      // Müşteri başına sıralama (işlem sonunda kendiliğinden bırakılır) + çift istek kontrolü
+      await tx.$queryRaw`SELECT 1 AS k FROM (SELECT pg_advisory_xact_lock(hashtext(${customer.id}))) x`;
+      const recent = await tx.order.findFirst({
+        where: { userId: customer.id, status: "PENDING_PAYMENT", createdAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_SEC * 1000) } },
+      });
+      if (recent) throw new DuplicateOrder();
       for (const l of view.okLines) await reserve(tx, { productId: l.productId, variantId: l.variantId }, l.quantity);
       let number = orderNumber();
       while (await tx.order.findUnique({ where: { orderNumber: number } })) number = orderNumber();
@@ -108,6 +136,7 @@ export async function placeOrder(
     });
   } catch (e) {
     if (e instanceof StockError) return { ok: false, message: "Bu arada bazı ürünlerin stoğu değişti. Lütfen sepetinizi kontrol edin." };
+    if (e instanceof DuplicateOrder) return { ok: false, message: "Siparişiniz zaten oluşturuldu ve ödeme bekliyor. Aynı siparişi ikinci kez göndermeyin." };
     throw e;
   }
   const payment = order.payments[0];
@@ -149,6 +178,9 @@ export async function placeOrder(
   return { ok: true, redirect: init.paymentPageUrl };
 }
 
+/** Sağlayıcı değil, sitenin kendisi tarafından kapatılan ödeme denemeleri (sonradan başarılı gelirse "geç ödeme"). */
+const LOCALLY_CLOSED = ["EXPIRED", "REPLACED", "EXPIRED_UNVERIFIED"];
+
 type Outcome = { success: boolean; providerPaymentId?: string | null; paidPrice?: number; errorCode?: string | null; errorMessage?: string | null; raw?: unknown };
 
 /**
@@ -162,9 +194,23 @@ export async function finalizePayment(paymentId: string, outcome: Outcome) {
     if (!locked.length) return { kind: "missing" as const };
     const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId }, include: { order: { include: { items: true } } } });
     const order = payment.order;
+    const now = new Date();
+    // Bizim tarafımızda süre dolduğu / yenisi başlatıldığı için kapatılmış bir ödeme, sağlayıcıda sonradan BAŞARILI olabilir
+    // (müşteri ödeme sayfasında beklemiş). Bu para alınmış demektir: kayda geçirilir ve iade için işaretlenir.
+    if (payment.status === "FAILED" && outcome.success && LOCALLY_CLOSED.includes(payment.errorCode ?? "")) {
+      await tx.payment.update({
+        where: { id: paymentId },
+        data: { status: "SUCCESS", providerPaymentId: outcome.providerPaymentId ?? null, completedAt: now, rawResponse: (outcome.raw ?? undefined) as never },
+      });
+      await tx.order.update({
+        where: { id: order.id },
+        data: { adminNote: [order.adminNote, `${now.toISOString()}: Ödeme, sipariş iptal edildikten sonra alındı. İade veya manuel işlem gerekli.`].filter(Boolean).join("\n") },
+      });
+      await tx.auditLog.create({ data: { action: "payment.late", entity: "Order", entityId: order.id, after: { paymentId, providerPaymentId: outcome.providerPaymentId ?? null } } });
+      return { kind: "late" as const, order };
+    }
     if (payment.status !== "PENDING") return { kind: "already" as const, order };
 
-    const now = new Date();
     const amountOk = outcome.paidPrice === undefined || Math.abs(outcome.paidPrice - Number(order.grandTotal)) < 0.005;
     if (outcome.success && !amountOk) outcome = { ...outcome, success: false, errorMessage: "Ödenen tutar sipariş tutarıyla uyuşmuyor." };
 
@@ -223,8 +269,15 @@ export async function finalizePayment(paymentId: string, outcome: Outcome) {
 export async function handleIyzicoCallback(token: string) {
   const payment = await prisma.payment.findUnique({ where: { providerToken: token }, include: { order: true } });
   if (!payment) return null;
-  if (payment.status === "PENDING") {
-    const { raw, signatureOk } = await retrieveCheckoutForm(token, payment.conversationId);
+  if (payment.status === "PENDING" || (payment.status === "FAILED" && LOCALLY_CLOSED.includes(payment.errorCode ?? ""))) {
+    let r: Awaited<ReturnType<typeof retrieveCheckoutForm>>;
+    try {
+      r = await retrieveCheckoutForm(token, payment.conversationId);
+    } catch {
+      // iyzico'ya ulaşılamadı: ödeme "bekliyor" kalır; süre dolunca mutabakatla kesinleşir
+      return payment.order.orderNumber;
+    }
+    const { raw, signatureOk } = r;
     const success =
       raw.status === "success" && raw.paymentStatus === "SUCCESS" && signatureOk && raw.basketId === payment.orderId && raw.conversationId === payment.conversationId;
     await finalizePayment(payment.id, {
@@ -239,15 +292,56 @@ export async function handleIyzicoCallback(token: string) {
   return payment.order.orderNumber;
 }
 
-/** Süresi dolan ödeme bekleyen siparişleri iptal eder ve ayrılan stoğu bırakır. */
+/** Bildirim gelmezse bu kadar süre sonra sağlayıcıya ulaşılamasa bile sipariş iptal edilir (ödeme sonradan gelirse "geç ödeme" olarak işaretlenir). */
+export const UNKNOWN_GRACE_MINUTES = 120;
+
+/**
+ * Süresi dolan ödeme bekleyen siparişler: önce sağlayıcıya ödemenin gerçek durumu sorulur (mutabakat).
+ *  - Ödenmişse (bildirim kaybolmuş olabilir) sipariş normal şekilde ödendi yapılır.
+ *  - Ödenmemişse iptal edilir ve stok ayırması bırakılır.
+ *  - Sağlayıcıya ulaşılamazsa sipariş bekletilir; 2 saat sonra yine ulaşılamazsa iptal edilir.
+ */
 export async function expireStaleOrders() {
   const stale = await prisma.order.findMany({
     where: { status: "PENDING_PAYMENT", reservationExpiresAt: { lt: new Date() } },
-    select: { id: true, payments: { where: { status: "PENDING" }, select: { id: true } } },
+    select: { id: true, reservationExpiresAt: true, payments: { where: { status: "PENDING" } } },
     take: 50,
   });
+  let n = 0;
   for (const o of stale) {
-    for (const p of o.payments) await finalizePayment(p.id, { success: false, errorCode: "EXPIRED", errorMessage: `Ödeme ${RESERVATION_MINUTES} dakika içinde tamamlanmadı.` });
+    for (const p of o.payments) {
+      const st = await providerPaymentState(p);
+      if (st.state === "SUCCESS") {
+        await finalizePayment(p.id, { success: true, providerPaymentId: st.providerPaymentId, paidPrice: st.paidPrice, raw: { mutabakat: true, raw: st.raw } });
+      } else if (st.state === "FAILED") {
+        await finalizePayment(p.id, { success: false, errorCode: "EXPIRED", errorMessage: `Ödeme ${RESERVATION_MINUTES} dakika içinde tamamlanmadı.`, raw: { mutabakat: true, raw: st.raw } });
+      } else if (Date.now() - (o.reservationExpiresAt?.getTime() ?? 0) > UNKNOWN_GRACE_MINUTES * 60_000) {
+        await finalizePayment(p.id, { success: false, errorCode: "EXPIRED_UNVERIFIED", errorMessage: `Ödeme durumu doğrulanamadı (${st.error}); süre doldu.` });
+      }
+      n++;
+    }
   }
-  return stale.length;
+  return n;
+}
+
+/**
+ * Müşterinin önceki ödeme bekleyen siparişleri: yeni sipariş başlatılırken kapatılır, böylece aynı sepet için
+ * iki ayrı stok ayırması / iki ödeme oluşmaz. Önceki ödeme aslında alınmışsa sipariş ödendi yapılır ve bildirilir.
+ */
+async function settlePreviousPending(userId: string): Promise<string | null> {
+  const pending = await prisma.order.findMany({
+    where: { userId, status: "PENDING_PAYMENT" },
+    select: { orderNumber: true, payments: { where: { status: "PENDING" } } },
+  });
+  for (const o of pending) {
+    for (const p of o.payments) {
+      const st = await providerPaymentState(p);
+      if (st.state === "SUCCESS") {
+        await finalizePayment(p.id, { success: true, providerPaymentId: st.providerPaymentId, paidPrice: st.paidPrice, raw: { mutabakat: true, raw: st.raw } });
+        return o.orderNumber;
+      }
+      await finalizePayment(p.id, { success: false, errorCode: "REPLACED", errorMessage: "Müşteri yeni bir sipariş başlattı; önceki ödeme denemesi kapatıldı.", raw: st.state === "UNKNOWN" ? { error: st.error } : st.raw });
+    }
+  }
+  return null;
 }
