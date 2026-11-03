@@ -20,3 +20,6 @@ env-taslak.txt
 .env.*
 !.env.example
 scripts/00-kontrol.cmd
+ci-yedekler/
+storage/ci-yukleme/
+storage/test-yedek/

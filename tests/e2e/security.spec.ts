@@ -76,3 +76,33 @@ test("robots.txt canlı adres tanımlı değilken tüm siteyi kapatır; sitemap 
   expect(xml).not.toContain(`/urun/${hidden.slug}`);
   expect(xml).not.toContain("/sayfa/kvkk"); // hukuki onay almamış metin dizine eklenmez
 });
+
+test("Content-Security-Policy: her istekte farklı nonce; sayfa betikleri nonce taşır ve sayfa çalışır", async ({ page, request }) => {
+  const a = (await request.get("/")).headers()["content-security-policy"];
+  const b = (await request.get("/")).headers()["content-security-policy"];
+  expect(a).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/=]+' 'strict-dynamic'/);
+  expect(a).toContain("frame-ancestors 'none'");
+  expect(a).not.toBe(b);
+  const errors: string[] = [];
+  page.on("console", (m) => { if (m.type() === "error" && /Content Security Policy/i.test(m.text())) errors.push(m.text()); });
+  await page.goto("/sepet");
+  const nonce = /'nonce-([^']+)'/.exec((await page.request.get("/sepet")).headers()["content-security-policy"])![1];
+  expect(nonce).toBeTruthy();
+  const scripts = await page.locator("script[src]").evaluateAll((els) => els.map((e) => (e as HTMLScriptElement).nonce));
+  expect(scripts.length).toBeGreaterThan(0);
+  expect(scripts.every((n) => n.length > 0)).toBe(true);
+  await page.goto("/admin/giris");
+  await expect(page.getByRole("button", { name: "Giriş yap" })).toBeEnabled();
+  expect(errors).toEqual([]);
+});
+
+test("hız sınırı: aynı istemciden aşırı adres sorgusu 429 döner, başka istemci etkilenmez", async ({ request }) => {
+  const ip = `198.51.100.${Math.floor(Math.random() * 200) + 1}`;
+  const statuses: number[] = [];
+  for (let i = 0; i < 65; i++) statuses.push((await request.get("/api/adres", { headers: { "X-Forwarded-For": ip } })).status());
+  expect(statuses.slice(0, 60).every((s) => s === 200)).toBe(true);
+  expect(statuses.slice(60)).toEqual([429, 429, 429, 429, 429]);
+  const blocked = await request.get("/api/adres", { headers: { "X-Forwarded-For": ip } });
+  expect(Number(blocked.headers()["retry-after"])).toBeGreaterThan(0);
+  expect((await request.get("/api/adres", { headers: { "X-Forwarded-For": "198.51.100.250" } })).status()).toBe(200);
+});

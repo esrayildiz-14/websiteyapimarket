@@ -132,10 +132,13 @@ test("depo online satışa açılınca stoğu satılabilire eklenir, kapatılın
   await page.getByTestId("warehouse-edit-submit").click();
   await expect(page.getByTestId("form-message")).toContainText("ödeme bekleyen");
   await q(`UPDATE inventory SET reserved = 0 WHERE "productId" = $1`, [p.id]);
+  await page.goto(`/admin/depolar/${whId}`); // önceki "güncellendi" mesajı ekranda kalmasın
+  await page.getByTestId("warehouse-edit-form").locator('[name="sellsOnline"]').uncheck();
   await page.getByTestId("warehouse-edit-submit").click();
   await expect(page.getByTestId("flash-ok")).toContainText("güncellendi");
   expect(await inv(p.id)).toEqual({ quantity: 6, reserved: 0 });
 
+  await page.goto(`/admin/depolar/${whId}`);
   await page.getByTestId("warehouse-edit-form").locator('[name="isActive"]').uncheck();
   await page.getByTestId("warehouse-edit-submit").click();
   await expect(page.getByTestId("form-message")).toContainText("Depoda");

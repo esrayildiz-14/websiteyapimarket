@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { headers } from "next/headers";
 import { siteUrl } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -8,7 +9,8 @@ export const metadata: Metadata = {
   description: "Yapı market ve hırdavat ürünleri, Türkiye geneli kargo.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  await headers(); // her sayfa isteğe özel CSP nonce'u ile dinamik üretilir
   return (
     <html lang="tr">
       <head>

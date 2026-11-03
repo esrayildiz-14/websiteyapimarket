@@ -10,11 +10,13 @@ export const SESSION_COOKIE = "oy_admin";
 const SESSION_HOURS = 8;
 const IDLE_MINUTES = 30;
 
+import { clientIpFrom } from "@/lib/rate-limit";
+
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
 export async function clientInfo() {
   const h = await headers();
-  const ip = (h.get("x-forwarded-for") ?? "").split(",")[0].trim() || h.get("x-real-ip") || "127.0.0.1";
+  const ip = clientIpFrom((n) => h.get(n));
   return { ip, userAgent: (h.get("user-agent") ?? "").slice(0, 300) };
 }
 

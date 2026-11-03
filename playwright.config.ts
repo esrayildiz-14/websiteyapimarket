@@ -38,6 +38,9 @@ export default defineConfig({
       DATABASE_URL: TEST_DB,
       NEXT_DIST_DIR: ".next-test",
       UPLOAD_DIR: "storage/test-uploads",
+      TRUST_PROXY_HOPS: "1", // testler X-Forwarded-For ile farklı istemci IP'lerini taklit edebilsin
+      RATE_LIMIT_ADRES: "60",
+      YEDEK_DIR: "storage/test-yedek", // yedek uyarısı testleri bu klasöre durum dosyası yazar
       PAYMENT_TEST_PROVIDER: "1", // yalnız _test veritabanında etkinleşen sahte ödeme sağlayıcısı
       IYZICO_API_KEY: "",
       IYZICO_SECRET_KEY: "",

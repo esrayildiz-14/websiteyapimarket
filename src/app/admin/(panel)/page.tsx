@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/auth/session";
 import { formatTL } from "@/lib/money";
 import Flash from "@/components/admin/Flash";
+import { backupStatus } from "@/server/backup-status";
 
 export const metadata = { title: "Dashboard" };
 
@@ -12,8 +13,9 @@ const STATUS_TR: Record<string, string> = {
 };
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  await requireStaff("dashboard.view");
+  const user = await requireStaff("dashboard.view");
   const sp = await searchParams;
+  const backup = user.permissions.has("*") || user.permissions.has("user.manage") ? await backupStatus() : null;
   const now = new Date();
   const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -70,6 +72,13 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         </div>
       </div>
       <Flash sp={sp} />
+      {backup && backup.state !== "ok" && (
+        <div className={`flash ${backup.state === "failed" ? "err" : "warn"}`} role="alert" data-testid="backup-warning">
+          {backup.state === "none" && "Henüz yedek alınmadı. Veri kaybı riskine karşı günlük otomatik yedeği kurun (YEDEKLEME-REHBERI.md)."}
+          {backup.state === "stale" && `Son başarılı yedek ${backup.at.toLocaleString("tr-TR")} tarihli; 26 saatten eski. Zamanlanmış yedeği kontrol edin.`}
+          {backup.state === "failed" && `Son yedekleme BAŞARISIZ (${backup.at.toLocaleString("tr-TR")}): ${backup.error}`}
+        </div>
+      )}
       <div className="grid-4" data-testid="dashboard-stats">
         {stats.map((s) => {
           const body = (

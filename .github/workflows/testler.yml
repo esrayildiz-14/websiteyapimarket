@@ -5,6 +5,8 @@ name: Testler
 on:
   push:
   workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *" # her gün: yedek + geri yükleme testi dahil tüm testler
 
 jobs:
   test:
@@ -12,7 +14,7 @@ jobs:
     timeout-minutes: 60
     services:
       postgres:
-        image: postgres:17
+        image: postgres:16 # çalıştırıcıdaki pg_dump/pg_restore 16 ile aynı ana sürüm
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: ci-sifre
@@ -49,6 +51,21 @@ jobs:
         run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
       - name: Entegrasyon testleri (gerçek veritabanında stok / depo)
         run: INTEGRATION_DATABASE_URL="$DATABASE_URL" npm run test:integration
+      - name: Yedek al ve yeni veritabanına geri yükleyip doğrula (süre ölçülür)
+        env:
+          UPLOAD_DIR: storage/ci-yukleme
+          YEDEK_DIR: ci-yedekler
+        run: |
+          pg_dump --version
+          mkdir -p storage/ci-yukleme/products/2026-11
+          head -c 2048 /dev/urandom > storage/ci-yukleme/products/2026-11/ornek.png
+          echo "deneme" > storage/ci-yukleme/products/2026-11/ikinci.webp
+          node scripts/yedek.mjs
+          D=$(ls -d ci-yedekler/20* | tail -1)
+          node scripts/geri-yukle.mjs "$D" oner_yapi_geri_ci /tmp/geri-gorsel
+          # aynı ada ikinci kez geri yükleme reddedilmeli (üzerine yazmaz)
+          if node scripts/geri-yukle.mjs "$D" oner_yapi_geri_ci /tmp/geri-gorsel2; then echo "UZERINE YAZDI" && exit 1; fi
+          cat ci-yedekler/son-durum.json | head -5
       - name: Kategori eki (iki kez çalışır; ikincide hiçbir şey eklememeli)
         run: |
           npx tsx prisma/kategori-ek.ts --uygula
