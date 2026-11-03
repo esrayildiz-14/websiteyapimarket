@@ -145,6 +145,8 @@ test.describe("Ürün görselleri", () => {
   });
 
   test("mağazada kapak görseli gösterilir", async ({ page }) => {
+    // yeni ürün varsayılan olarak pasif kaydedilir; mağazada görünmesi için yayına alınır
+    await q(`UPDATE products SET status = 'ACTIVE' WHERE id = $1`, [id]);
     const p = (await q<{ slug: string; url: string }>(
       `SELECT p.slug, i.url FROM products p JOIN product_images i ON i."productId" = p.id AND i."sortOrder" = 0 WHERE p.id = $1`, [id]))[0];
     await page.goto(`/urun/${p.slug}`);
