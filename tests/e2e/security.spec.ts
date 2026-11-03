@@ -90,7 +90,7 @@ test("Content-Security-Policy: her istekte farklı nonce; sayfa betikleri nonce 
   expect(nonce).toBeTruthy();
   const scripts = await page.locator("script[src]").evaluateAll((els) => els.map((e) => (e as HTMLScriptElement).nonce));
   expect(scripts.length).toBeGreaterThan(0);
-  expect(scripts.every((n) => n.length > 0)).toBe(true);
+  expect(scripts.every((n) => (n ?? "").length > 0)).toBe(true);
   await page.goto("/admin/giris");
   await expect(page.getByRole("button", { name: "Giriş yap" })).toBeEnabled();
   expect(errors).toEqual([]);
