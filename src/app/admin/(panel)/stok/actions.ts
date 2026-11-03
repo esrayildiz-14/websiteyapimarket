@@ -8,7 +8,7 @@ import { stockEntry, updateMinStock } from "@/server/price-stock-admin";
 
 export async function stockEntryAction(fd: FormData) {
   const user = await requireStaff("stock.write");
-  const r = await stockEntry(user, { sku: fd.get("sku"), mode: fd.get("mode"), quantity: fd.get("quantity"), note: fd.get("note") || undefined });
+  const r = await stockEntry(user, { sku: fd.get("sku"), mode: fd.get("mode"), quantity: fd.get("quantity"), note: fd.get("note") || undefined, warehouseId: fd.get("warehouseId") || undefined });
   revalidatePath("/", "layout");
   redirect(withMsg("/admin/stok", r.ok ? "ok" : "hata", r.message));
 }

@@ -6,7 +6,7 @@ import type { StaffUser } from "@/lib/auth/session";
 import { parseMoney } from "@/lib/money";
 import { bulkNewPrice, type BulkPriceInput } from "@/lib/price-rules";
 export { bulkPriceSchema, type BulkPriceInput } from "@/lib/price-rules";
-import { adjustStock, setMinStock, setStock, StockError } from "./inventory";
+import { adjustStock, setMinStock, setStock, setWarehouseStock, StockError } from "./inventory";
 
 export type Result = { ok: true; message: string } | { ok: false; message: string; errors?: Record<string, string> };
 
@@ -65,13 +65,14 @@ export const stockEntrySchema = z.object({
   mode: z.enum(["in", "out", "count"]),
   quantity: z.coerce.number({ invalid_type_error: "Miktar sayı olmalı." }).int("Miktar tam sayı olmalı.").min(0, "Miktar negatif olamaz.").max(1_000_000),
   note: z.string().trim().max(300).optional(),
+  warehouseId: z.string().trim().optional().transform((s) => s || undefined),
 });
 
 /** Stok girişi / çıkışı / sayım. Varyant kodu girilirse varyant stoğu değişir. */
 export async function stockEntry(user: StaffUser, raw: Record<string, unknown>): Promise<Result> {
   const parsed = stockEntrySchema.safeParse(raw);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0].message };
-  const { sku, mode, quantity, note } = parsed.data;
+  const { sku, mode, quantity, note, warehouseId } = parsed.data;
   if (mode !== "count" && quantity === 0) return { ok: false, message: "Giriş veya çıkış miktarı 0 olamaz." };
 
   const product = await prisma.product.findUnique({ where: { sku } });
@@ -82,11 +83,12 @@ export async function stockEntry(user: StaffUser, raw: Record<string, unknown>):
   const meta = { userId: user.id, note: note || (mode === "count" ? "Sayım" : mode === "in" ? "Stok girişi" : "Stok çıkışı") };
   try {
     const after = await prisma.$transaction((tx) =>
-      mode === "count" ? setStock(tx, key, quantity, meta)
-      : adjustStock(tx, key, mode === "in" ? quantity : -quantity, mode === "in" ? "PURCHASE_IN" : "ADJUSTMENT", meta),
+      mode === "count"
+        ? warehouseId ? setWarehouseStock(tx, key, warehouseId, quantity, meta) : setStock(tx, key, quantity, meta)
+        : adjustStock(tx, key, mode === "in" ? quantity : -quantity, mode === "in" ? "PURCHASE_IN" : "ADJUSTMENT", { ...meta, warehouseId }),
     );
-    await audit(user.id, "stock." + mode, "Inventory", key.variantId ?? key.productId, undefined, { sku, quantity, after });
-    return { ok: true, message: `${label}: yeni stok ${after}.` };
+    await audit(user.id, "stock." + mode, "Inventory", key.variantId ?? key.productId, undefined, { sku, quantity, after, warehouseId });
+    return { ok: true, message: warehouseId ? `${label}: depodaki yeni stok ${after}.` : `${label}: yeni stok ${after}.` };
   } catch (e) {
     if (e instanceof StockError) return { ok: false, message: e.message };
     throw e;

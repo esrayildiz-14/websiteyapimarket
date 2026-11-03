@@ -2,21 +2,19 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { can, requireStaff } from "@/lib/auth/session";
 import Flash from "@/components/admin/Flash";
+import { MOVEMENT_LABEL } from "@/lib/movement";
 import { minStockAction, stockEntryAction } from "./actions";
 
 export const metadata = { title: "Stok yönetimi" };
 type SP = Promise<Record<string, string | string[] | undefined>>;
 
-const TYPE_LABEL: Record<string, string> = {
-  PURCHASE_IN: "Giriş", SALE_OUT: "Satış", CANCEL_IN: "İptal iadesi", RETURN_IN: "Müşteri iadesi", ADJUSTMENT: "Düzeltme",
-};
 
 export default async function StockPage({ searchParams }: { searchParams: SP }) {
   const user = await requireStaff("product.read");
   const sp = await searchParams;
   const critical = sp.durum === "kritik";
   const write = can(user, "stock.write");
-  const [rows, movements] = await Promise.all([
+  const [rows, movements, warehouses] = await Promise.all([
     prisma.$queryRaw<{ id: string; name: string; sku: string; quantity: number; reserved: number; minStock: number }[]>`
       SELECT p.id, p.name, p.sku, COALESCE(i.quantity, 0)::int AS quantity, COALESCE(i.reserved, 0)::int AS reserved,
              COALESCE(i."minStock", 0)::int AS "minStock"
@@ -25,7 +23,8 @@ export default async function StockPage({ searchParams }: { searchParams: SP }) 
         AND (${critical} = false OR COALESCE(i.quantity, 0) - COALESCE(i.reserved, 0) <= COALESCE(i."minStock", 0))
       ORDER BY (COALESCE(i.quantity, 0) - COALESCE(i.reserved, 0)) ASC, p.name ASC
       LIMIT 200`,
-    prisma.inventoryMovement.findMany({ orderBy: { createdAt: "desc" }, take: 40, include: { product: true, variant: true, user: true, order: true } }),
+    prisma.inventoryMovement.findMany({ orderBy: { createdAt: "desc" }, take: 40, include: { product: true, variant: true, user: true, order: true, warehouse: true } }),
+    prisma.warehouse.findMany({ where: { isActive: true }, orderBy: [{ isDefault: "desc" }, { sortOrder: "asc" }] }),
   ]);
 
   return (
@@ -70,6 +69,17 @@ export default async function StockPage({ searchParams }: { searchParams: SP }) 
               <span className="oy-field__label">Açıklama</span>
               <input className="oy-input" name="note" maxLength={300} placeholder="Ör. irsaliye no" />
             </label>
+            {warehouses.length > 1 && (
+              <label className="oy-field">
+                <span className="oy-field__label">Depo</span>
+                <select className="oy-select" name="warehouseId" defaultValue="">
+                  <option value="">Varsayılan depo (sayımda: satılabilir toplam)</option>
+                  {warehouses.map((w) => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <div className="actions full">
               <button className="oy-btn oy-btn--primary" type="submit" data-testid="stock-submit">
                 Kaydet
@@ -137,8 +147,9 @@ export default async function StockPage({ searchParams }: { searchParams: SP }) 
                 <th>Tarih</th>
                 <th>Ürün</th>
                 <th>Hareket</th>
+                <th>Depo</th>
                 <th className="num">Miktar</th>
-                <th className="num">Sonraki stok</th>
+                <th className="num">Depoda kalan</th>
                 <th>Açıklama</th>
                 <th>Kullanıcı</th>
               </tr>
@@ -151,7 +162,8 @@ export default async function StockPage({ searchParams }: { searchParams: SP }) 
                     {m.product.name}
                     {m.variant ? ` · ${m.variant.name}` : ""}
                   </td>
-                  <td>{TYPE_LABEL[m.type] ?? m.type}</td>
+                  <td>{MOVEMENT_LABEL[m.type] ?? m.type}</td>
+                  <td className="muted">{m.warehouse?.name ?? "—"}</td>
                   <td className="num">{m.quantity > 0 ? `+${m.quantity}` : m.quantity}</td>
                   <td className="num">{m.stockAfter}</td>
                   <td className="muted">

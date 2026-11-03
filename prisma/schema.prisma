@@ -56,6 +56,11 @@ enum MovementType {
   CANCEL_IN
   RETURN_IN
   ADJUSTMENT
+  TRANSFER_OUT // depolar arası transfer – çıkan depo
+  TRANSFER_IN // depolar arası transfer – giren depo
+  ISSUE_OUT // mal çıkışı (satış dışı kullanım)
+  DAMAGE_OUT // hasarlı ürün
+  WASTE_OUT // fire
 }
 
 enum DiscountType {
@@ -330,15 +335,51 @@ model Inventory {
   id        String   @id @default(cuid())
   productId String?  @unique
   variantId String?  @unique
-  quantity  Int      @default(0)
+  quantity  Int      @default(0) // online satışa açık depoların toplamı
   reserved  Int      @default(0)
   minStock  Int      @default(0)
   updatedAt DateTime @updatedAt
 
-  product Product?        @relation(fields: [productId], references: [id], onDelete: Cascade)
-  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  product         Product?         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant         ProductVariant?  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  warehouseStocks WarehouseStock[]
 
   @@map("inventory")
+}
+
+/// Depo / stok noktası. sellsOnline = bu deponun stoğu sitede satılabilir stoğa dahildir.
+model Warehouse {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  address     String?
+  sellsOnline Boolean  @default(true)
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stocks    WarehouseStock[]
+  movements InventoryMovement[]
+
+  @@map("warehouses")
+}
+
+/// Bir envanter kaleminin (ürün veya varyant) bir depodaki fiziksel adedi.
+model WarehouseStock {
+  id          String   @id @default(cuid())
+  warehouseId String
+  inventoryId String
+  quantity    Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  @@unique([warehouseId, inventoryId])
+  @@index([inventoryId])
+  @@map("warehouse_stocks")
 }
 
 model PriceHistory {
@@ -376,8 +417,10 @@ model InventoryMovement {
   orderId    String?
   userId     String?
   note       String?
+  warehouseId String?
   createdAt  DateTime     @default(now())
 
+  warehouse Warehouse?    @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
   product Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
   variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
   order   Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)

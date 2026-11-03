@@ -15,7 +15,8 @@
     "test:unit": "tsx --test \"tests/unit/**/*.test.ts\"",
     "test": "npm run test:unit && npm run test:e2e",
     "test:e2e": "playwright test",
-    "build:test": "next build"
+    "build:test": "next build",
+    "test:integration": "node --import tsx --conditions=react-server --test \"tests/integration/**/*.test.ts\""
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.0.0",

@@ -9,6 +9,7 @@ export const PERMISSIONS = {
   "category.write": "Kategori ve alt kategori yönetimi",
   "brand.write": "Marka yönetimi",
   "stock.write": "Stok girişi ve düzeltme",
+  "warehouse.write": "Depo tanımlama, depolar arası transfer, mal çıkışı / hasar / fire",
   "order.read": "Siparişleri görüntüleme",
   "order.update": "Sipariş durumu ve kargo takip no",
   "order.refund": "İptal ve iade",
@@ -29,14 +30,14 @@ export const ROLES: { key: string; name: string; permissions: Permission[] | "AL
     name: "Admin",
     permissions: [
       "dashboard.view", "product.read", "product.write", "product.purchase_price", "price.write", "category.write",
-      "brand.write", "stock.write", "order.read", "order.update", "order.refund", "shipping.write", "customer.read",
+      "brand.write", "stock.write", "warehouse.write", "order.read", "order.update", "order.refund", "shipping.write", "customer.read",
       "campaign.write", "content.write", "audit.view",
     ],
   },
   {
     key: "PRODUCT_MANAGER",
     name: "Ürün Yöneticisi",
-    permissions: ["dashboard.view", "product.read", "product.write", "price.write", "category.write", "brand.write", "stock.write"],
+    permissions: ["dashboard.view", "product.read", "product.write", "price.write", "category.write", "brand.write", "stock.write", "warehouse.write"],
   },
   {
     key: "ORDER_STAFF",

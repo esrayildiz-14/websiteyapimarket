@@ -6,7 +6,7 @@ import { slugify } from "@/lib/slug";
 import { suggestProfile } from "@/lib/shipping";
 import { deleteStoredFile, saveImage, UploadError } from "@/lib/storage";
 import { MAX_IMAGES_PER_PRODUCT } from "@/lib/image";
-import { setMinStock, setStock, StockError } from "./inventory";
+import { adjustStock, setMinStock, setStock, StockError } from "./inventory";
 import { fieldErrors, productFormToObject, productInputSchema, type ProductInput } from "@/lib/validation/product";
 
 export type SaveResult =
@@ -139,15 +139,13 @@ export async function createProduct(user: StaffUser, fd: FormData): Promise<Save
         data: {
           ...dataFrom(input, rel.categoryId!, user),
           slug,
-          inventory: { create: { quantity: input.stock, minStock: input.minStock } },
+          inventory: { create: { quantity: 0, minStock: input.minStock } },
           images: { create: saved.map((s, i) => ({ ...s, alt: input.name, sortOrder: i })) },
           priceHistory: { create: { price: input.price, salePrice: input.salePrice ?? null, changedById: user.id } },
         },
       });
-      if (input.stock > 0)
-        await tx.inventoryMovement.create({
-          data: { productId: p.id, type: "PURCHASE_IN", quantity: input.stock, stockAfter: input.stock, userId: user.id, note: "İlk stok (ürün oluşturma)" },
-        });
+      // ilk stok varsayılan depoya giriş hareketi olarak yazılır
+      if (input.stock > 0) await adjustStock(tx, { productId: p.id }, input.stock, "PURCHASE_IN", { userId: user.id, note: "İlk stok (ürün oluşturma)" });
       return p;
     });
     await audit(user.id, "product.create", "Product", product.id, undefined, { sku: product.sku, name: product.name, status: product.status });
