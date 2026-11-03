@@ -116,7 +116,7 @@ export async function transfer(user: StaffUser, raw: Record<string, unknown>): P
   try {
     const r = await prisma.$transaction((tx) => transferStock(tx, item.key, from.id, to.id, p.data.quantity, { userId: user.id, note }));
     await audit(user.id, "warehouse.transfer", "Inventory", item.key.variantId ?? item.key.productId, undefined, {
-      code: p.data.code, from: from.code, to: to.code, quantity: p.data.quantity, ...r,
+      code: p.data.code, from: from.code, to: to.code, quantity: p.data.quantity, fromAfter: r.from, toAfter: r.to,
     });
     return { ok: true, message: `${item.label}: ${p.data.quantity} adet ${from.name} → ${to.name}. Kalan ${r.from}, hedefte ${r.to}.` };
   } catch (e) {
