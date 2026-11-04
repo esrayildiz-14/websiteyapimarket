@@ -16,7 +16,8 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     // Bilgisayarda kurulu Google Chrome kullanılır; ayrıca tarayıcı indirilmez.
-    channel: process.env.PW_CHANNEL || "chrome",
+    // Tarayıcı uyumluluğu turunda kanal projeye göre seçilir (Firefox/WebKit için kanal verilmez).
+    channel: process.env.CROSS_BROWSER === "1" ? undefined : process.env.PW_CHANNEL || "chrome",
     headless: true,
     locale: "tr-TR",
     trace: "retain-on-failure",
@@ -25,9 +26,9 @@ export default defineConfig({
   projects: process.env.CROSS_BROWSER === "1"
     ? [
         // Tarayıcı uyumluluğu: uçtan uca akış ve ekran testleri Firefox, WebKit (Safari motoru) ve Edge'de
-        { name: "firefox", testMatch: /(qa-flow|responsive|qa-viewports)\.spec/, use: { ...devices["Desktop Firefox"], channel: undefined } },
-        { name: "webkit", testMatch: /(qa-flow|responsive|qa-viewports)\.spec/, use: { ...devices["Desktop Safari"], channel: undefined } },
-        { name: "webkit-iphone", testMatch: /responsive\.spec/, use: { ...devices["iPhone 13"], channel: undefined } },
+        { name: "firefox", testMatch: /(qa-flow|responsive|qa-viewports)\.spec/, use: { ...devices["Desktop Firefox"] } },
+        { name: "webkit", testMatch: /(qa-flow|responsive|qa-viewports)\.spec/, use: { ...devices["Desktop Safari"] } },
+        { name: "webkit-iphone", testMatch: /responsive\.spec/, use: { ...devices["iPhone 13"] } },
         { name: "edge", testMatch: /(qa-flow|responsive)\.spec/, use: { channel: "msedge" } },
       ]
     : [
