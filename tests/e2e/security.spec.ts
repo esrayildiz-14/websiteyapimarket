@@ -54,6 +54,11 @@ test("başkasının sipariş sonucu ve sipariş takibi e-posta olmadan görünt�
      VALUES ($1, $2, 'PAID', 'CARD', 'Başka Müşteri', 'baska@test.local', '05320000000', '{}', '{}', 100, 16.67, 100, now(), now())`,
     ["sec" + no, no],
   );
+  // tutarlı bir sipariş olsun (veri bütünlüğü denetimi test verisini de tarar): bir satır + başarılı test ödemesi
+  await q(`INSERT INTO order_items (id, "orderId", "productName", sku, "unitPrice", "vatRate", quantity, "lineTotal", "shippingProfileCode")
+           VALUES ($1, $2, 'Test ürünü', 'SEC-1', 100, 20, 1, 100, 'STD')`, ["seci" + no, "sec" + no]);
+  await q(`INSERT INTO payments (id, "orderId", provider, status, amount, "conversationId", "isTest", "createdAt", "completedAt")
+           VALUES ($1, $2, 'TEST', 'SUCCESS', 100, $1, true, now(), now())`, ["secp" + no, "sec" + no]);
   const o = { orderNumber: no };
   expect((await page.goto(`/siparis/${o.orderNumber}/sonuc`))?.status()).toBe(404);
   await page.goto(`/siparis-takip?no=${o.orderNumber}&e=baska@test.local`); // eski biçim: e-posta URL'de olsa bile kabul edilmez

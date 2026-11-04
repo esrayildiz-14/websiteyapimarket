@@ -40,7 +40,7 @@ const KONTROLLER = [
     `SELECT "orderNumber", "reservationExpiresAt" FROM orders WHERE status = 'PENDING_PAYMENT' AND "reservationExpiresAt" < now() - interval '1 hour'`],
   ["HATA", "Satın almada teslim alınan > sipariş edilen", `SELECT id, "purchaseOrderId", quantity, "receivedQty" FROM purchase_order_items WHERE "receivedQty" > quantity OR "receivedQty" < 0`],
   ["HATA", "Satın alma satırında teslim alınan ≠ mal kabul belgelerinin toplamı",
-    `SELECT i.id, i."receivedQty", coalesce(sum(g.quantity), 0)::int AS belgeler FROM purchase_order_items i LEFT JOIN goods_receipt_items g ON g."orderItemId" = i.id
+    `SELECT i.id, i."receivedQty", coalesce(sum(g.quantity), 0)::int AS belgeler FROM purchase_order_items i LEFT JOIN goods_receipt_items g ON g."purchaseOrderItemId" = i.id
       GROUP BY i.id HAVING i."receivedQty" <> coalesce(sum(g.quantity), 0)`],
   ["HATA", "Kasa satışında iade toplamı satış tutarını aşıyor", `SELECT number, "grandTotal", "refundedTotal" FROM store_sales WHERE "refundedTotal" > "grandTotal" + 0.005`],
   ["HATA", "Tamamlanan kasa satışında tahsilat < satış tutarı",

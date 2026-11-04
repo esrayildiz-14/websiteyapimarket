@@ -37,7 +37,7 @@ test("olmayan API ve sayfa 404 döner", async ({ request }) => {
 test("sepete ekleme formu tarayıcıda değiştirilse de sunucu adet ve ürünü doğrular", async ({ page }) => {
   const p = await insertProduct({ categoryId: await anyCategory(), stock: 4, price: 250 });
   const draft = await insertProduct({ categoryId: await anyCategory(), stock: 10 });
-  await q(`UPDATE products SET status = 'DRAFT' WHERE id = $1`, [draft.id]);
+  await q(`UPDATE products SET status = 'PASSIVE' WHERE id = $1`, [draft.id]);
   const form = page.getByTestId("add-to-cart");
 
   async function submitWith(qty: string, productId?: string) {
