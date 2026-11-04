@@ -15,7 +15,7 @@ import type { MovementType, Prisma } from "@/generated/prisma/client";
  */
 type Tx = Prisma.TransactionClient;
 export type StockKey = { productId: string; variantId?: string | null };
-type Meta = { userId?: string | null; orderId?: string | null; note?: string | null; goodsReceiptId?: string | null; stockCountId?: string | null };
+type Meta = { userId?: string | null; orderId?: string | null; note?: string | null; goodsReceiptId?: string | null; stockCountId?: string | null; storeSaleId?: string | null };
 
 export class StockError extends Error {
   constructor(message: string, public key: StockKey) {
@@ -90,6 +90,7 @@ async function movement(tx: Tx, key: StockKey, type: MovementType, quantity: num
       warehouseId,
       goodsReceiptId: meta.goodsReceiptId ?? null,
       stockCountId: meta.stockCountId ?? null,
+      storeSaleId: meta.storeSaleId ?? null,
     },
   });
 }

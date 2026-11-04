@@ -22,6 +22,7 @@ const NAV: (NavItem & { perm: Permission; any?: Permission[] })[] = [
   { href: "/admin/tedarikciler", label: "Tedarikçiler", group: "Tedarik", perm: "supplier.write", any: ["supplier.write", "purchase.write", "purchase.approve", "purchase.receive"] },
   { href: "/admin/satin-alma", label: "Satın alma ve mal kabul", group: "Tedarik", perm: "purchase.write", any: ["supplier.write", "purchase.write", "purchase.approve", "purchase.receive"] },
   { href: "/admin/siparisler", label: "Siparişler", group: "Satış", perm: "order.read" },
+  { href: "/admin/kasa", label: "Mağaza kasası", group: "Satış", perm: "pos.sell" },
   { href: "/admin/kargo", label: "Kargo yönetimi", group: "Satış", perm: "shipping.write" },
   { href: "/admin/musteriler", label: "Müşteriler", group: "Satış", perm: "customer.read" },
   { href: "/admin/kampanyalar", label: "Kampanyalar", group: "Satış", perm: "campaign.write" },

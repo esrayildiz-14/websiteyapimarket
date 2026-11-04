@@ -16,6 +16,8 @@ export const PERMISSIONS = {
   "purchase.receive": "Mal kabul (stok girişi)",
   "stockcount.write": "Stok sayımı başlatma ve ürün okutma",
   "stockcount.approve": "Stok sayımını onaylama (stok düzeltmesi)",
+  "pos.sell": "Mağaza kasası: barkodla satış",
+  "pos.refund": "Mağaza kasası: satış iptali ve iade",
   "order.read": "Siparişleri görüntüleme",
   "order.update": "Sipariş durumu ve kargo takip no",
   "order.refund": "İptal ve iade",
@@ -36,7 +38,7 @@ export const ROLES: { key: string; name: string; permissions: Permission[] | "AL
     name: "Admin",
     permissions: [
       "dashboard.view", "product.read", "product.write", "product.purchase_price", "price.write", "category.write",
-      "brand.write", "stock.write", "warehouse.write", "supplier.write", "purchase.write", "purchase.approve", "purchase.receive", "stockcount.write", "stockcount.approve", "order.read", "order.update", "order.refund", "shipping.write", "customer.read",
+      "brand.write", "stock.write", "warehouse.write", "supplier.write", "purchase.write", "purchase.approve", "purchase.receive", "stockcount.write", "stockcount.approve", "pos.sell", "pos.refund", "order.read", "order.update", "order.refund", "shipping.write", "customer.read",
       "campaign.write", "content.write", "audit.view",
     ],
   },
@@ -44,6 +46,11 @@ export const ROLES: { key: string; name: string; permissions: Permission[] | "AL
     key: "PRODUCT_MANAGER",
     name: "Ürün Yöneticisi",
     permissions: ["dashboard.view", "product.read", "product.write", "price.write", "category.write", "brand.write", "stock.write", "warehouse.write", "supplier.write", "purchase.write", "purchase.receive", "stockcount.write"],
+  },
+  {
+    key: "STORE_STAFF",
+    name: "Mağaza Satış Personeli",
+    permissions: ["dashboard.view", "product.read", "pos.sell"],
   },
   {
     key: "ORDER_STAFF",
