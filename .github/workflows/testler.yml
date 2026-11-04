@@ -73,6 +73,9 @@ jobs:
           grep -q "0 kategori, 0 marka" ikinci.txt
       - name: Tarayıcı (Playwright) testleri
         run: npx playwright test --reporter=list,html
+      - name: Veri bütünlüğü (testlerin oluşturduğu tüm sipariş, ödeme, stok, satın alma ve kasa kayıtları üzerinde)
+        if: always()
+        run: set -o pipefail; EMAIL_LOG_SECRETS=1 VERI_DB_URL="$TEST_DATABASE_URL" node scripts/veri-butunlugu.mjs | tee -a $GITHUB_STEP_SUMMARY
       - name: Test raporunu sakla
         if: always()
         uses: actions/upload-artifact@v4

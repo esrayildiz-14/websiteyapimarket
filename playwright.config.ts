@@ -11,7 +11,9 @@ export default defineConfig({
   expect: { timeout: 60_000 }, // geliştirme sunucusu her sayfayı ilk açılışta derler (20+ sn)
   fullyParallel: false,
   workers: 1,
-  retries: 0,
+  // CI'da uzun turda geliştirme sunucusu bellek eşiğinde kendini yeniden başlatabiliyor (uygulama hatası değil);
+  // bu yüzden CI'da başarısız test BİR kez tekrar denenir. Tekrarla geçen testler raporda "flaky" olarak ayrıca görünür.
+  retries: process.env.CI ? 1 : 0,
   reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],
   use: {
     baseURL: `http://localhost:${PORT}`,
@@ -50,7 +52,7 @@ export default defineConfig({
       TRUST_PROXY_HOPS: "1", // testler X-Forwarded-For ile farklı istemci IP'lerini taklit edebilsin
       RATE_LIMIT_ADRES: "60",
       RATE_LIMIT_POST: "2000", // tüm testler aynı IP'den gelir; POST sınırı birim testlerinde (rate-limit) doğrulanır
-      NODE_OPTIONS: "--max-old-space-size=4096", // uzun test turunda geliştirme sunucusunun bellek eşiğiyle yeniden başlamasını önler
+      NODE_OPTIONS: "--max-old-space-size=6144", // uzun test turunda geliştirme sunucusunun bellek eşiğiyle yeniden başlamasını önler
       YEDEK_DIR: "storage/test-yedek",
       EMAIL_LOG_SECRETS: "1", // testler şifre sıfırlama bağlantısını e-posta kaydından okur
       APP_ENCRYPTION_KEY: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=", // yalnız test // yedek uyarısı testleri bu klasöre durum dosyası yazar

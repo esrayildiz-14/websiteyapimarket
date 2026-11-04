@@ -4,6 +4,7 @@ import { requireStaff } from "@/lib/auth/session";
 import { formatTL } from "@/lib/money";
 import Flash from "@/components/admin/Flash";
 import { backupStatus } from "@/server/backup-status";
+import { istanbulDayStart, istanbulMonthStart } from "@/lib/report-calc";
 
 export const metadata = { title: "Dashboard" };
 
@@ -17,8 +18,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const backup = user.permissions.has("*") || user.permissions.has("user.manage") ? await backupStatus() : null;
   const now = new Date();
-  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const dayStart = istanbulDayStart(now);
+  const monthStart = istanbulMonthStart(now);
   const paidStatuses = ["PAID", "PREPARING", "SHIPPED", "DELIVERED"] as const;
 
   // Demo/test siparişleri ve TEST ödemeleri satış rakamlarına katılmaz

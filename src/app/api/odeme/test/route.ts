@@ -5,8 +5,9 @@ import { testProviderAllowed } from "@/server/payments";
 // Sahte sağlayıcının geri dönüşü — yalnız test veritabanında ve üretim dışında çalışır.
 export async function POST(req: Request) {
   if (!testProviderAllowed()) return new Response("Bulunamadı", { status: 404 });
-  const fd = await req.formData();
-  const token = String(fd.get("token") ?? "");
+  const fd = await req.formData().catch(() => null);
+  const token = String(fd?.get("token") ?? "");
+  if (!fd || !token) return new Response("Geçersiz istek", { status: 400 });
   const outcome = String(fd.get("sonuc") ?? "");
   const p = await prisma.payment.findUnique({ where: { providerToken: token }, include: { order: true } });
   if (!p) return new Response("Bulunamadı", { status: 404 });

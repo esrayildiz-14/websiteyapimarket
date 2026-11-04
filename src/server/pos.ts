@@ -1,4 +1,5 @@
 import "server-only";
+import { istanbulYmd } from "@/lib/report-calc";
 import { randomInt } from "node:crypto";
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
@@ -50,8 +51,7 @@ export const saleSchema = z.object({
 });
 
 function number(prefix: string) {
-  const d = new Date();
-  return `${prefix}${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}-${randomInt(10000, 99999)}`;
+  return `${prefix}${istanbulYmd(new Date()).slice(2).replace(/-/g, "")}-${randomInt(10000, 99999)}`;
 }
 
 export type SaleResult = { ok: true; id: string; number: string; grandTotal: number; change: number } | { ok: false; message: string };

@@ -1,6 +1,17 @@
 // Rapor hesapları (saf). Tutarlar: brüt = KDV dahil, net = KDV hariç.
 import { round2 } from "./money";
 
+/** Türkiye saati (UTC+3, yaz saati uygulaması yok). Sunucu UTC'de çalışsa da gün/ay sınırı İstanbul'a göre alınır. */
+export function istanbulYmd(d: Date) {
+  return new Date(d.getTime() + 3 * 3600_000).toISOString().slice(0, 10);
+}
+export function istanbulDayStart(d: Date) {
+  return new Date(`${istanbulYmd(d)}T00:00:00+03:00`);
+}
+export function istanbulMonthStart(d: Date) {
+  return new Date(`${istanbulYmd(d).slice(0, 7)}-01T00:00:00+03:00`);
+}
+
 export type Fact = {
   date: Date;
   channel: "ONLINE" | "MAGAZA";

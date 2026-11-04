@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { aggregate, byDim, periodKey, toCsv, type Fact } from "../../src/lib/report-calc";
+import { aggregate, byDim, istanbulDayStart, istanbulMonthStart, periodKey, toCsv, type Fact } from "../../src/lib/report-calc";
 
 const f = (o: Partial<Fact>): Fact => ({
   date: new Date("2026-11-04T09:00:00Z"), channel: "ONLINE", productId: "p1", productName: "Matkap", sku: "M1", category: "Elektrikli", brand: "Bosch",
@@ -32,4 +32,13 @@ test("CSV: noktalı virgül, ondalık virgül, tırnak kaçışı, BOM", () => {
   const csv = toCsv(["Ürün", "Tutar"], [['Boya "beyaz"; 2,5 L', 12.5]]);
   assert.ok(csv.startsWith("﻿"));
   assert.equal(csv.slice(1), 'Ürün;Tutar\r\n"Boya ""beyaz""; 2,5 L";12,5');
+});
+
+test("gün ve ay başı İstanbul saatine göre: UTC 22:30 = İstanbul'da ertesi gün 01:30", () => {
+  const t = new Date("2026-10-31T22:30:00Z"); // İstanbul: 1 Kasım 01:30
+  assert.equal(istanbulDayStart(t).toISOString(), "2026-10-31T21:00:00.000Z");
+  assert.equal(istanbulMonthStart(t).toISOString(), "2026-10-31T21:00:00.000Z");
+  const u = new Date("2026-11-15T12:00:00Z");
+  assert.equal(istanbulDayStart(u).toISOString(), "2026-11-14T21:00:00.000Z");
+  assert.equal(istanbulMonthStart(u).toISOString(), "2026-10-31T21:00:00.000Z");
 });

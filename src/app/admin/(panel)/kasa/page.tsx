@@ -4,6 +4,7 @@ import { requireStaff } from "@/lib/auth/session";
 import Flash from "@/components/admin/Flash";
 import { formatTL } from "@/lib/money";
 import KasaClient from "./KasaClient";
+import { istanbulDayStart } from "@/lib/report-calc";
 
 export const metadata = { title: "Mağaza kasası" };
 type SP = Promise<Record<string, string | string[] | undefined>>;
@@ -11,8 +12,7 @@ type SP = Promise<Record<string, string | string[] | undefined>>;
 export default async function KasaPage({ searchParams }: { searchParams: SP }) {
   await requireStaff("pos.sell");
   const sp = await searchParams;
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
+  const dayStart = istanbulDayStart(new Date());
   const [warehouses, today] = await Promise.all([
     prisma.warehouse.findMany({ where: { isActive: true }, orderBy: [{ isDefault: "desc" }, { sortOrder: "asc" }], select: { id: true, name: true } }),
     prisma.storeSale.findMany({ where: { createdAt: { gte: dayStart } }, orderBy: { createdAt: "desc" }, include: { payments: true } }),

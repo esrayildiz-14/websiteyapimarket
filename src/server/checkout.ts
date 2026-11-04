@@ -7,6 +7,7 @@ import type { ShippingPackage } from "@/lib/shipping";
 import { cartView } from "./cart";
 import { commitSale, release, reserve, StockError } from "./inventory";
 import { sendEmail } from "./email";
+import { istanbulYmd } from "@/lib/report-calc";
 import { paymentProvider, providerPaymentState } from "./payments";
 import { iyzicoConfig, initializeCheckoutForm, retrieveCheckoutForm } from "./payments/iyzico";
 import type { AddressSnapshot } from "./address-book";
@@ -15,8 +16,7 @@ import type { AddressSnapshot } from "./address-book";
 export const RESERVATION_MINUTES = 30;
 
 function orderNumber() {
-  const d = new Date();
-  const ymd = `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  const ymd = istanbulYmd(new Date()).slice(2).replace(/-/g, "");
   return `OY${ymd}${randomInt(100000, 999999)}`;
 }
 
