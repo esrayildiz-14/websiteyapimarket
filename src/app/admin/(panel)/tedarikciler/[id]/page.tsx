@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { can, PURCHASING_VIEW, requireAnyStaff } from "@/lib/auth/session";
+import { can, requireAnyStaff, SUPPLIER_VIEW } from "@/lib/auth/session";
 import ActionForm from "@/components/admin/ActionForm";
 import Flash from "@/components/admin/Flash";
 import { formatTL } from "@/lib/money";
@@ -14,7 +14,7 @@ export const metadata = { title: "Tedarikçi" };
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 export default async function SupplierPage({ params, searchParams }: Props) {
-  const user = await requireAnyStaff(PURCHASING_VIEW);
+  const user = await requireAnyStaff(SUPPLIER_VIEW);
   const { id } = await params;
   const sp = await searchParams;
   const s = await prisma.supplier.findUnique({

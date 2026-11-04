@@ -54,6 +54,7 @@ async function signIn(page: import("@playwright/test").Page, pw = PASS) {
 
 test("profil düzenleme: geçersiz telefon reddedilir, geçerli bilgiler kaydedilir", async ({ page }) => {
   await signIn(page);
+  await expect(page.getByTestId("account-link")).toContainText("Hesabım");
   await page.goto("/hesabim");
   const f = page.getByTestId("profile-form");
   await f.locator('[name="phone"]').fill("abc");
@@ -70,8 +71,10 @@ test("profil düzenleme: geçersiz telefon reddedilir, geçerli bilgiler kaydedi
 
 test("şifre değiştirme: yanlış mevcut şifre reddedilir; yeni şifreyle giriş, eskisiyle giriş yapılamaz; diğer oturum kapanır", async ({ page, browser }) => {
   await signIn(page);
+  await expect(page.getByTestId("account-link")).toContainText("Hesabım");
   const other = await (await browser.newContext()).newPage();
   await signIn(other);
+  await expect(other.getByTestId("account-link")).toContainText("Hesabım");
   await other.goto("/hesabim");
   await expect(other.getByTestId("customer-name")).toBeVisible();
 

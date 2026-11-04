@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { categoryWithDescendants, listOptionsFrom, listProducts } from "@/server/catalog";
 import ProductListing from "@/components/shop/ProductListing";
-import { siteUrl } from "@/lib/site";
+import { fallbackDescription, OG_BASE, siteUrl } from "@/lib/site";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -14,9 +14,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const c = found.category;
   return {
     title: c.seoTitle ? { absolute: c.seoTitle } : c.name,
-    description: c.seoDescription ?? undefined,
+    description: c.seoDescription ?? c.description?.slice(0, 160) ?? fallbackDescription(c.name, [found.category.parent?.name, "yapı market ürünleri"]),
     alternates: { canonical: `/kategori/${c.slug}` },
-    openGraph: c.imageUrl ? { images: [c.imageUrl] } : undefined,
+    openGraph: { ...OG_BASE, title: c.seoTitle ?? c.name, ...(c.imageUrl ? { images: [c.imageUrl] } : {}) },
   };
 }
 

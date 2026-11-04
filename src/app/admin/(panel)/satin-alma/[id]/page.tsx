@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { can, PURCHASING_VIEW, requireAnyStaff } from "@/lib/auth/session";
+import { can, canAny, COST_VIEW, PURCHASING_VIEW, requireAnyStaff } from "@/lib/auth/session";
 import Flash from "@/components/admin/Flash";
 import { formatTL } from "@/lib/money";
 import { canDo, PURCHASE_STATUS_LABEL } from "@/lib/purchase-calc";
@@ -30,6 +30,7 @@ export default async function PurchasePage({ params, searchParams }: Props) {
     const p = people.find((x) => x.id === uid);
     return p ? `${p.firstName} ${p.lastName}` : "—";
   };
+  const showCost = canAny(user, COST_VIEW);
   const edit = canDo("edit", po.status) && can(user, "purchase.write");
   const today = new Date().toISOString().slice(0, 10);
   const hidden = <input type="hidden" name="poId" value={po.id} />;
@@ -40,7 +41,7 @@ export default async function PurchasePage({ params, searchParams }: Props) {
         <div>
           <h1>{po.number}</h1>
           <p>
-            <span data-testid="po-status">{PURCHASE_STATUS_LABEL[po.status]}</span> · <Link href={`/admin/tedarikciler/${po.supplierId}`}>{po.supplier.name}</Link> → {po.warehouse.name}
+            <span data-testid="po-status">{PURCHASE_STATUS_LABEL[po.status]}</span> · {showCost ? <Link href={`/admin/tedarikciler/${po.supplierId}`}>{po.supplier.name}</Link> : po.supplier.name} → {po.warehouse.name}
             {po.expectedAt ? ` · beklenen ${po.expectedAt.toLocaleDateString("tr-TR")}` : ""}
           </p>
         </div>
@@ -56,8 +57,8 @@ export default async function PurchasePage({ params, searchParams }: Props) {
           <table className="tbl" data-testid="po-items">
             <thead>
               <tr>
-                <th>Ürün</th><th className="num">Sipariş</th><th className="num">Teslim alınan</th><th className="num">Birim fiyat</th>
-                <th className="num">İskonto</th><th className="num">KDV</th><th className="num">Net tutar</th>{edit && <th />}
+                <th>Ürün</th><th className="num">Sipariş</th><th className="num">Teslim alınan</th>
+                {showCost && <><th className="num">Birim fiyat</th><th className="num">İskonto</th><th className="num">KDV</th><th className="num">Net tutar</th></>}{edit && <th />}
               </tr>
             </thead>
             <tbody>
@@ -66,10 +67,14 @@ export default async function PurchasePage({ params, searchParams }: Props) {
                   <td>{i.productName}<div className="muted">{i.sku}{i.supplierSku ? ` · tedarikçi kodu ${i.supplierSku}` : ""}</div></td>
                   <td className="num" data-testid="qty">{i.quantity}</td>
                   <td className="num" data-testid="received">{i.receivedQty}</td>
-                  <td className="num">{formatTL(i.unitPrice)}</td>
-                  <td className="num">%{Number(i.discountPct)}</td>
-                  <td className="num">%{i.vatRate}</td>
-                  <td className="num" data-testid="net">{formatTL(i.lineNet)}</td>
+                  {showCost && (
+                    <>
+                      <td className="num">{formatTL(i.unitPrice)}</td>
+                      <td className="num">%{Number(i.discountPct)}</td>
+                      <td className="num">%{i.vatRate}</td>
+                      <td className="num" data-testid="net">{formatTL(i.lineNet)}</td>
+                    </>
+                  )}
                   {edit && (
                     <td>
                       <form action={removeItemAction}>
@@ -83,12 +88,12 @@ export default async function PurchasePage({ params, searchParams }: Props) {
               ))}
               {!po.items.length && <tr><td colSpan={8} className="muted">Henüz ürün eklenmedi.</td></tr>}
             </tbody>
-            <tfoot>
+            {showCost && <tfoot>
               <tr><td colSpan={6} className="num">İskonto</td><td className="num">{formatTL(po.discountTotal)}</td></tr>
               <tr><td colSpan={6} className="num">Ara toplam (KDV hariç)</td><td className="num" data-testid="po-subtotal">{formatTL(po.subtotal)}</td></tr>
               <tr><td colSpan={6} className="num">KDV</td><td className="num" data-testid="po-vat">{formatTL(po.vatTotal)}</td></tr>
               <tr><td colSpan={6} className="num"><b>Genel toplam</b></td><td className="num"><b data-testid="po-total">{formatTL(po.grandTotal)}</b></td></tr>
-            </tfoot>
+            </tfoot>}
           </table>
         </div>
 

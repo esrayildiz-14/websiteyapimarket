@@ -101,6 +101,10 @@ export function can(user: StaffUser | null, permission: Permission) {
   return !!user && (user.permissions.has("*") || user.permissions.has(permission));
 }
 
+export function canAny(user: StaffUser | null, permissions: Permission[]) {
+  return permissions.some((p) => can(user, p));
+}
+
 /** Sayfa ve action'ların başında: oturum yoksa girişe, yetki yoksa panoya yönlendirir. */
 export async function requireStaff(permission?: Permission, opts: { allowWithoutMfa?: boolean } = {}): Promise<StaffUser> {
   const user = await getCurrentStaff();
@@ -118,3 +122,7 @@ export async function requireAnyStaff(permissions: Permission[]): Promise<StaffU
 }
 
 export const PURCHASING_VIEW: Permission[] = ["supplier.write", "purchase.write", "purchase.approve", "purchase.receive"];
+/** Tedarikçi kartları (alış fiyatları, vade, iletişim) — mal kabul yapan depo personeli göremez. */
+export const SUPPLIER_VIEW: Permission[] = ["supplier.write", "purchase.write", "purchase.approve"];
+/** Alış fiyatı / maliyet görebilen yetkiler. */
+export const COST_VIEW: Permission[] = ["product.purchase_price", "purchase.write", "purchase.approve", "supplier.write", "finance.view"];

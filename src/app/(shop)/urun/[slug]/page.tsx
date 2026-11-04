@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { activeDiscounts, toCard, VISIBLE } from "@/server/catalog";
 import { addToCartAction } from "../../actions";
 import Flash from "@/components/admin/Flash";
-import { siteUrl } from "@/lib/site";
+import { fallbackDescription, OG_BASE, siteUrl } from "@/lib/site";
 import { isInternalBarcode } from "@/lib/barcode";
 import { discountPercent, formatTL } from "@/lib/money";
 import { SALE_UNIT_LABELS } from "@/lib/validation/product";
@@ -22,12 +22,12 @@ async function load(slug: string) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const p = await load((await params).slug);
   if (!p) return { title: "Ürün bulunamadı" };
-  const description = p.seoDescription ?? p.shortDescription ?? undefined;
+  const description = p.seoDescription ?? p.shortDescription ?? fallbackDescription(p.name, [p.brand?.name, p.category.parent?.name, p.category.name]);
   return {
     title: p.seoTitle || p.name,
     description,
     alternates: { canonical: `/urun/${p.slug}` },
-    openGraph: { type: "website", title: p.seoTitle || p.name, description, url: `/urun/${p.slug}`, images: p.images[0] ? [{ url: p.images[0].url, alt: p.images[0].alt ?? p.name }] : undefined },
+    openGraph: { ...OG_BASE, title: p.seoTitle || p.name, description, url: `/urun/${p.slug}`, images: p.images[0] ? [{ url: p.images[0].url, alt: p.images[0].alt ?? p.name }] : undefined },
   };
 }
 

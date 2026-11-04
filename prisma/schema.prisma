@@ -350,6 +350,9 @@ model Product {
 
   @@index([status, deletedAt, categoryId])
   @@index([brandId])
+  @@index([createdAt])
+  @@index([soldCount])
+  @@index([updatedAt])
   @@map("products")
 }
 

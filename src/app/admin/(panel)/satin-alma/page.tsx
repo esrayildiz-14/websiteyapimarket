@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { can, PURCHASING_VIEW, requireAnyStaff } from "@/lib/auth/session";
+import { can, canAny, COST_VIEW, PURCHASING_VIEW, requireAnyStaff } from "@/lib/auth/session";
 import Flash from "@/components/admin/Flash";
 import { formatTL } from "@/lib/money";
 import { PURCHASE_STATUS_LABEL } from "@/lib/purchase-calc";
@@ -26,6 +26,7 @@ export default async function PurchasesPage({ searchParams }: { searchParams: SP
     prisma.warehouse.findMany({ where: { isActive: true }, orderBy: [{ isDefault: "desc" }, { sortOrder: "asc" }] }),
   ]);
   const c = Object.fromEntries(counts.map((x) => [x.status, x._count]));
+  const showCost = canAny(user, COST_VIEW);
   const pre = typeof sp.tedarikci === "string" ? sp.tedarikci : "";
 
   return (
@@ -49,7 +50,7 @@ export default async function PurchasesPage({ searchParams }: { searchParams: SP
       <div className="tbl-wrap">
         <table className="tbl" data-testid="po-table">
           <thead>
-            <tr><th>No</th><th>Tedarikçi</th><th>Depo</th><th>Durum</th><th className="num">Kalem</th><th>Beklenen</th><th className="num">Toplam (KDV dahil)</th></tr>
+            <tr><th>No</th><th>Tedarikçi</th><th>Depo</th><th>Durum</th><th className="num">Kalem</th><th>Beklenen</th>{showCost && <th className="num">Toplam (KDV dahil)</th>}</tr>
           </thead>
           <tbody>
             {orders.map((o) => (
@@ -60,7 +61,7 @@ export default async function PurchasesPage({ searchParams }: { searchParams: SP
                 <td>{PURCHASE_STATUS_LABEL[o.status]}</td>
                 <td className="num">{o._count.items}</td>
                 <td>{o.expectedAt ? o.expectedAt.toLocaleDateString("tr-TR") : "—"}</td>
-                <td className="num">{formatTL(o.grandTotal)}</td>
+                {showCost && <td className="num">{formatTL(o.grandTotal)}</td>}
               </tr>
             ))}
             {!orders.length && <tr><td colSpan={7} className="muted">Sipariş yok.</td></tr>}

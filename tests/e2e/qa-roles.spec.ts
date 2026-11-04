@@ -38,6 +38,10 @@ test("depo personeli depo ve sayım ekranlarını kullanır; finans, personel, f
     await page.goto(url);
     await expect(page, url).toHaveURL(/\/admin\?hata=/);
   }
+  // Mal kabul için satın alma listesine girer ama alış tutarlarını görmez
+  await page.goto("/admin/satin-alma");
+  await expect(page.getByTestId("po-table")).toBeVisible();
+  await expect(page.getByTestId("po-table")).not.toContainText("Toplam");
   expect((await page.request.get("/admin/rapor-indir?format=csv")).status()).toBe(403);
   expect((await page.request.get("/admin/sablon-urun", { maxRedirects: 0 })).status()).not.toBe(200);
 });

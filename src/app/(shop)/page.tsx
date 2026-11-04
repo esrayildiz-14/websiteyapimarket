@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { activeDiscounts, toCard, VISIBLE } from "@/server/catalog";
 import ProductCard from "@/components/shop/ProductCard";
 
+export const metadata = { alternates: { canonical: "/" } };
+
 const INCLUDE = { brand: true, category: true, images: { orderBy: { sortOrder: "asc" as const }, take: 1 }, shippingProfile: true, inventory: true };
 
 export default async function HomePage() {

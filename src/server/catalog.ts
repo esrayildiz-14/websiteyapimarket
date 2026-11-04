@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { effectivePrice, type DiscountRule } from "@/lib/pricing";
 import { stockState } from "./inventory";
 
@@ -44,78 +45,82 @@ export type ListOptions = {
   take?: number; // eski çağrılar için: sayfalamasız ilk N ürün
 };
 
-function searchWhere(q: string | undefined) {
-  return q
-    ? {
-        OR: [
-          { name: { contains: q, mode: "insensitive" as const } },
-          { sku: { contains: q.toUpperCase() } },
-          { barcode: q },
-          { brand: { name: { contains: q, mode: "insensitive" as const } } },
-          { model: { contains: q, mode: "insensitive" as const } },
-        ],
-      }
-    : {};
+
+/** Kampanya kurallarından, ürünün müşteriye görünen fiyatını veren SQL ifadesi (effectivePrice ile aynı kural). */
+function effectivePriceSql(rules: DiscountRule[]) {
+  const now = new Date();
+  const parts: Prisma.Sql[] = [Prisma.sql`p.price`, Prisma.sql`CASE WHEN p."salePrice" IS NOT NULL AND p."salePrice" < p.price THEN p."salePrice" ELSE p.price END`];
+  for (const r of rules) {
+    if (!r.isActive || now < r.startsAt || now > r.endsAt) continue;
+    const cond =
+      r.target === "ALL" ? Prisma.sql`TRUE`
+      : r.target === "PRODUCT" ? Prisma.sql`p.id = ${r.targetId}`
+      : r.target === "CATEGORY" ? Prisma.sql`(p."categoryId" = ${r.targetId} OR c."parentId" = ${r.targetId})`
+      : Prisma.sql`p."brandId" = ${r.targetId}`;
+    const val = r.type === "PERCENT" ? Prisma.sql`ROUND(p.price * (1 - ${r.value}::numeric / 100), 2)` : Prisma.sql`GREATEST(0, p.price - ${r.value}::numeric)`;
+    parts.push(Prisma.sql`CASE WHEN ${cond} THEN ${val} ELSE p.price END`);
+  }
+  return Prisma.sql`LEAST(${Prisma.join(parts)})`;
 }
 
 /**
- * Ürün listesi: filtre (marka, fiyat aralığı, stokta olanlar), sıralama ve sayfalama.
- * Fiyat filtresi ve sıralaması müşterinin gördüğü GEÇERLİ fiyata göre yapılır (indirimli fiyat ve kampanyalar dahil).
- * Önce eşleşen ürünlerin yalnız fiyat/stok alanları çekilir, sıralanır; sonra yalnız istenen sayfanın ayrıntıları yüklenir.
+ * Ürün listesi: filtre (marka, fiyat aralığı, stokta olanlar), sıralama ve sayfalama — tamamı veritabanında.
+ * Fiyat filtresi ve sıralaması müşterinin gördüğü GEÇERLİ fiyata göre (indirimli fiyat ve kampanyalar dahil).
+ * Yalnız istenen sayfanın ürünleri yüklenir; on binlerce üründe de sabit maliyet.
  */
 export async function listProducts(categoryIds: string[] | null, opts: ListOptions = {}) {
-  const where = { ...VISIBLE, ...(categoryIds ? { categoryId: { in: categoryIds } } : {}), ...searchWhere(opts.q) };
-  const [slim, rules] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      select: {
-        id: true, price: true, salePrice: true, categoryId: true, brandId: true, soldCount: true, createdAt: true,
-        category: { select: { parentId: true } }, brand: { select: { id: true, name: true } }, inventory: { select: { quantity: true, reserved: true } },
-      },
-    }),
-    activeDiscounts(),
+  const rules = await activeDiscounts();
+  const eff = effectivePriceSql(rules);
+  const q = opts.q?.trim();
+  const like = q ? `%${q.replace(/[\\%_]/g, (m) => "\\" + m)}%` : "";
+  const base = Prisma.sql`
+    FROM products p
+    JOIN categories c ON c.id = p."categoryId"
+    LEFT JOIN categories pc ON pc.id = c."parentId"
+    LEFT JOIN brands b ON b.id = p."brandId"
+    LEFT JOIN inventory i ON i."productId" = p.id
+    WHERE p.status = 'ACTIVE' AND p."deletedAt" IS NULL AND c."isActive" AND (c."parentId" IS NULL OR pc."isActive")
+      ${categoryIds ? Prisma.sql`AND p."categoryId" IN (${Prisma.join(categoryIds.length ? categoryIds : ["-"])})` : Prisma.empty}
+      ${q ? Prisma.sql`AND (p.name ILIKE ${like} OR p.sku ILIKE ${like.toUpperCase()} OR p.barcode = ${q} OR b.name ILIKE ${like} OR p.model ILIKE ${like})` : Prisma.empty}`;
+  const filters = Prisma.sql`
+      ${opts.brandIds?.length ? Prisma.sql`AND p."brandId" IN (${Prisma.join(opts.brandIds)})` : Prisma.empty}
+      ${opts.minPrice != null ? Prisma.sql`AND ${eff} >= ${opts.minPrice}` : Prisma.empty}
+      ${opts.maxPrice != null ? Prisma.sql`AND ${eff} <= ${opts.maxPrice}` : Prisma.empty}
+      ${opts.inStock ? Prisma.sql`AND COALESCE(i.quantity, 0) - COALESCE(i.reserved, 0) > 0` : Prisma.empty}`;
+  const order =
+    opts.sort === "fiyat-artan" ? Prisma.sql`${eff} ASC, p.id`
+    : opts.sort === "fiyat-azalan" ? Prisma.sql`${eff} DESC, p.id`
+    : opts.sort === "yeni" ? Prisma.sql`p."createdAt" DESC, p.id`
+    : Prisma.sql`p."soldCount" DESC, p.id`;
+
+  const perPage = opts.take ?? Math.min(96, Math.max(1, Math.floor(opts.perPage ?? 24)));
+  const requested = opts.take ? 1 : Math.max(1, Math.min(100_000, Math.floor(opts.page ?? 1) || 1));
+  const [countRow, facets] = await Promise.all([
+    prisma.$queryRaw<{ n: number }[]>`SELECT COUNT(*)::int AS n ${base} ${filters}`,
+    // marka seçenekleri ve fiyat aralığı: liste kapsamında (marka/fiyat/stok filtresinden bağımsız)
+    prisma.$queryRaw<{ id: string | null; name: string | null; count: number; min: string; max: string }[]>`
+      SELECT p."brandId" AS id, MIN(b.name) AS name, COUNT(*)::int AS count, MIN(${eff})::text AS min, MAX(${eff})::text AS max
+      ${base} GROUP BY p."brandId"`,
   ]);
-  const rows = slim.map((p) => ({
-    ...p,
-    eff: effectivePrice(
-      { id: p.id, price: Number(p.price), salePrice: p.salePrice === null ? null : Number(p.salePrice), categoryId: p.categoryId, categoryParentId: p.category.parentId, brandId: p.brandId },
-      rules,
-    ).price,
-    avail: Math.max(0, (p.inventory?.quantity ?? 0) - (p.inventory?.reserved ?? 0)),
-  }));
-  // marka seçenekleri: diğer filtrelerden bağımsız, bu listede bulunan markalar
-  const brandMap = new Map<string, { id: string; name: string; count: number }>();
-  for (const r of rows) if (r.brand) brandMap.set(r.brand.id, { ...r.brand, count: (brandMap.get(r.brand.id)?.count ?? 0) + 1 });
-  const brands = [...brandMap.values()].sort((x, y) => x.name.localeCompare(y.name, "tr"));
-  const priceRange = rows.length ? { min: Math.min(...rows.map((r) => r.eff)), max: Math.max(...rows.map((r) => r.eff)) } : null;
-
-  const filtered = rows.filter(
-    (r) =>
-      (!opts.brandIds?.length || (r.brandId !== null && opts.brandIds.includes(r.brandId))) &&
-      (opts.minPrice == null || r.eff >= opts.minPrice) &&
-      (opts.maxPrice == null || r.eff <= opts.maxPrice) &&
-      (!opts.inStock || r.avail > 0),
-  );
-  const cmp: Record<string, (a: (typeof rows)[number], b: (typeof rows)[number]) => number> = {
-    "fiyat-artan": (a, b) => a.eff - b.eff,
-    "fiyat-azalan": (a, b) => b.eff - a.eff,
-    yeni: (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
-    "": (a, b) => b.soldCount - a.soldCount,
-  };
-  const sorter = cmp[opts.sort ?? ""] ?? cmp[""];
-  filtered.sort((a, b) => sorter(a, b) || a.id.localeCompare(b.id));
-
-  const perPage = opts.take ?? Math.min(96, Math.max(1, opts.perPage ?? 24));
-  const total = filtered.length;
+  const total = countRow[0]?.n ?? 0;
   const pages = Math.max(1, Math.ceil(total / perPage));
-  const page = opts.take ? 1 : Math.min(pages, Math.max(1, Math.floor(opts.page ?? 1)));
-  const ids = filtered.slice((page - 1) * perPage, page * perPage).map((r) => r.id);
-  const full = await prisma.product.findMany({
-    where: { id: { in: ids } },
-    include: { brand: true, category: true, images: { orderBy: { sortOrder: "asc" }, take: 1 }, shippingProfile: true, inventory: true },
-  });
+  const page = Math.min(pages, requested);
+  const idRows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT p.id ${base} ${filters} ORDER BY ${order} LIMIT ${perPage} OFFSET ${(page - 1) * perPage}`;
+  const ids = idRows.map((r) => r.id);
+  const full = ids.length
+    ? await prisma.product.findMany({
+        where: { id: { in: ids } },
+        include: { brand: true, category: true, images: { orderBy: { sortOrder: "asc" }, take: 1 }, shippingProfile: true, inventory: true },
+      })
+    : [];
   const byId = new Map(full.map((p) => [p.id, p]));
   const items = ids.map((id) => byId.get(id)).filter((p): p is NonNullable<typeof p> => !!p).map((p) => toCard(p, rules));
+  const brands = facets
+    .filter((f): f is typeof f & { id: string; name: string } => !!f.id && !!f.name)
+    .map((f) => ({ id: f.id, name: f.name, count: f.count }))
+    .sort((x, y) => x.name.localeCompare(y.name, "tr"));
+  const priceRange = facets.length ? { min: Math.min(...facets.map((f) => Number(f.min))), max: Math.max(...facets.map((f) => Number(f.max))) } : null;
   return { items, total, page, pages, perPage, brands, priceRange };
 }
 

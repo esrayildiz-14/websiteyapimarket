@@ -48,6 +48,8 @@ export default defineConfig({
       UPLOAD_DIR: "storage/test-uploads",
       TRUST_PROXY_HOPS: "1", // testler X-Forwarded-For ile farklı istemci IP'lerini taklit edebilsin
       RATE_LIMIT_ADRES: "60",
+      RATE_LIMIT_POST: "2000", // tüm testler aynı IP'den gelir; POST sınırı birim testlerinde (rate-limit) doğrulanır
+      NODE_OPTIONS: "--max-old-space-size=4096", // uzun test turunda geliştirme sunucusunun bellek eşiğiyle yeniden başlamasını önler
       YEDEK_DIR: "storage/test-yedek",
       EMAIL_LOG_SECRETS: "1", // testler şifre sıfırlama bağlantısını e-posta kaydından okur
       APP_ENCRYPTION_KEY: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=", // yalnız test // yedek uyarısı testleri bu klasöre durum dosyası yazar
