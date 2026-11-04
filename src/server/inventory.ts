@@ -15,7 +15,7 @@ import type { MovementType, Prisma } from "@/generated/prisma/client";
  */
 type Tx = Prisma.TransactionClient;
 export type StockKey = { productId: string; variantId?: string | null };
-type Meta = { userId?: string | null; orderId?: string | null; note?: string | null; goodsReceiptId?: string | null };
+type Meta = { userId?: string | null; orderId?: string | null; note?: string | null; goodsReceiptId?: string | null; stockCountId?: string | null };
 
 export class StockError extends Error {
   constructor(message: string, public key: StockKey) {
@@ -89,6 +89,7 @@ async function movement(tx: Tx, key: StockKey, type: MovementType, quantity: num
       note: meta.note ?? null,
       warehouseId,
       goodsReceiptId: meta.goodsReceiptId ?? null,
+      stockCountId: meta.stockCountId ?? null,
     },
   });
 }
@@ -133,6 +134,14 @@ export async function setStock(tx: Tx, key: StockKey, target: number, meta: Meta
   if (!def.sellsOnline) throw new StockError("Varsayılan depo online satışa kapalı; stoğu depo ekranından düzeltin.", key);
   await adjustStock(tx, key, diff, "ADJUSTMENT", { ...meta, warehouseId: def.id });
   return target;
+}
+
+/** Bir depodaki güncel fiziksel adet (eski kayıt varsa önce varsayılan depoya alınır). */
+export async function warehouseQty(tx: Tx, inventoryId: string, warehouseId: string) {
+  await adoptLegacy(tx, inventoryId);
+  const r = await tx.$queryRaw<{ quantity: number }[]>`
+    SELECT quantity FROM warehouse_stocks WHERE "warehouseId" = ${warehouseId} AND "inventoryId" = ${inventoryId}`;
+  return r[0]?.quantity ?? 0;
 }
 
 /** Sayım: bir depodaki adedi belirli değere getirir (ADJUSTMENT). Dönen değer: depodaki yeni adet. */

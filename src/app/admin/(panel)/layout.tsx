@@ -18,6 +18,7 @@ const NAV: (NavItem & { perm: Permission; any?: Permission[] })[] = [
   { href: "/admin/fiyatlar", label: "Fiyat yönetimi", group: "Katalog", perm: "price.write" },
   { href: "/admin/stok", label: "Stok yönetimi", group: "Katalog", perm: "product.read" },
   { href: "/admin/depolar", label: "Depolar ve transfer", group: "Depo", perm: "product.read" },
+  { href: "/admin/sayim", label: "Stok sayımı", group: "Depo", perm: "stockcount.write", any: ["stockcount.write", "stockcount.approve"] },
   { href: "/admin/tedarikciler", label: "Tedarikçiler", group: "Tedarik", perm: "supplier.write", any: ["supplier.write", "purchase.write", "purchase.approve", "purchase.receive"] },
   { href: "/admin/satin-alma", label: "Satın alma ve mal kabul", group: "Tedarik", perm: "purchase.write", any: ["supplier.write", "purchase.write", "purchase.approve", "purchase.receive"] },
   { href: "/admin/siparisler", label: "Siparişler", group: "Satış", perm: "order.read" },

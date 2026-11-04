@@ -84,6 +84,13 @@ enum ReceiptDocType {
   IRSALIYELI_FATURA
 }
 
+enum StockCountStatus {
+  OPEN // sayım sürüyor
+  SUBMITTED // onay bekliyor
+  APPROVED // onaylandı, stok düzeltildi
+  CANCELLED
+}
+
 enum DiscountType {
   PERCENT
   FIXED
@@ -389,6 +396,7 @@ model Inventory {
   product         Product?         @relation(fields: [productId], references: [id], onDelete: Cascade)
   variant         ProductVariant?  @relation(fields: [variantId], references: [id], onDelete: Cascade)
   warehouseStocks WarehouseStock[]
+  countLines      StockCountLine[]
 
   @@map("inventory")
 }
@@ -410,6 +418,7 @@ model Warehouse {
   movements      InventoryMovement[]
   purchaseOrders PurchaseOrder[]
   receipts       GoodsReceipt[]
+  stockCounts    StockCount[]
 
   @@map("warehouses")
 }
@@ -467,10 +476,12 @@ model InventoryMovement {
   note       String?
   warehouseId String?
   goodsReceiptId String? // mal kabulden gelen giriş
+  stockCountId   String? // sayım düzeltmesi
   createdAt  DateTime     @default(now())
 
   warehouse Warehouse?    @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
   goodsReceipt GoodsReceipt? @relation(fields: [goodsReceiptId], references: [id], onDelete: SetNull)
+  stockCount   StockCount?   @relation(fields: [stockCountId], references: [id], onDelete: SetNull)
   product Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
   variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
   order   Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
@@ -1052,4 +1063,48 @@ model GoodsReceiptItem {
   @@index([goodsReceiptId])
   @@index([purchaseOrderItemId])
   @@map("goods_receipt_items")
+}
+
+/// Stok sayımı. Sayılan adet, ürünün ilk okutulduğu andaki sistem adediyle karşılaştırılır; onayda fark,
+/// o andan sonraki hareketler korunarak düzeltme hareketi olarak yazılır. Geçmiş hareketler silinmez.
+model StockCount {
+  id           String           @id @default(cuid())
+  number       String           @unique
+  warehouseId  String
+  status       StockCountStatus @default(OPEN)
+  fullCount    Boolean          @default(false) // tam sayım: sayılmayan ürünler 0 kabul edilir
+  note         String?
+  createdById  String?
+  submittedAt  DateTime?
+  approvedById String?
+  approvedAt   DateTime?
+  cancelledAt  DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  warehouse Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  lines     StockCountLine[]
+  movements InventoryMovement[]
+
+  @@index([warehouseId, status])
+  @@map("stock_counts")
+}
+
+model StockCountLine {
+  id          String   @id @default(cuid())
+  stockCountId String
+  inventoryId String
+  productId   String
+  sku         String
+  name        String
+  systemQty   Int // ilk okutulduğunda depodaki sistem adedi
+  countedQty  Int
+  scannedAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stockCount StockCount @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  inventory  Inventory  @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  @@unique([stockCountId, inventoryId])
+  @@map("stock_count_lines")
 }
