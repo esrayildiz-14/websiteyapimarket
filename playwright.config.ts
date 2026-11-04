@@ -22,12 +22,20 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [
+  projects: process.env.CROSS_BROWSER === "1"
+    ? [
+        // Tarayıcı uyumluluğu: uçtan uca akış ve ekran testleri Firefox, WebKit (Safari motoru) ve Edge'de
+        { name: "firefox", testMatch: /(qa-flow|responsive|qa-viewports)\.spec/, use: { ...devices["Desktop Firefox"], channel: undefined } },
+        { name: "webkit", testMatch: /(qa-flow|responsive|qa-viewports)\.spec/, use: { ...devices["Desktop Safari"], channel: undefined } },
+        { name: "webkit-iphone", testMatch: /responsive\.spec/, use: { ...devices["iPhone 13"], channel: undefined } },
+        { name: "edge", testMatch: /(qa-flow|responsive)\.spec/, use: { channel: "msedge" } },
+      ]
+    : [
     { name: "masaustu", testIgnore: /responsive\.spec/ },
     { name: "masaustu-duzen", testMatch: /responsive\.spec/, use: { viewport: { width: 1440, height: 900 } } },
     { name: "tablet", testMatch: /responsive\.spec/, use: { viewport: { width: 820, height: 1180 }, hasTouch: true } },
     { name: "mobil", testMatch: /responsive\.spec/, use: { ...devices["Pixel 7"], channel: process.env.PW_CHANNEL || "chrome" } },
-  ],
+      ],
   webServer: {
     command: `npx next dev -p ${PORT}`,
     url: `http://localhost:${PORT}/admin/giris`,
