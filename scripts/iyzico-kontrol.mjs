@@ -11,7 +11,7 @@ const show = (name) => {
   if (v !== v.trim()) problems.push("basta/sonda bosluk");
   if (/\s/.test(v.trim())) problems.push("icinde bosluk");
   if (/["']/.test(v)) problems.push("icinde tirnak isareti");
-  console.log(`${name}: uzunluk=${v.length} baslangic="${v.slice(0, 8)}" sandbox_mi=${v.startsWith("sandbox-")} sorunlar=${problems.join(",") || "yok"}`);
+  console.log(`${name}: uzunluk=${v.length} sandbox_mi=${v.startsWith("sandbox-")} sorunlar=${problems.join(",") || "yok"}`); // anahtarın hiçbir karakteri yazdırılmaz
   return v.trim();
 };
 const k = show("IYZICO_API_KEY");
