@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { categoryWithDescendants, listCategoryProducts } from "@/server/catalog";
-import ProductCard from "@/components/shop/ProductCard";
+import { categoryWithDescendants, listOptionsFrom, listProducts } from "@/server/catalog";
+import ProductListing from "@/components/shop/ProductListing";
+import { siteUrl } from "@/lib/site";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -25,8 +26,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   const found = await categoryWithDescendants(slug);
   if (!found) notFound();
   const { category, ids } = found;
-  const sort = typeof sp.sirala === "string" ? sp.sirala : "";
-  const products = await listCategoryProducts(ids, { sort });
+  const r = await listProducts(ids, listOptionsFrom(sp));
 
   return (
     <>
@@ -45,24 +45,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
         <div>
           <h1 className="h1">{category.name}</h1>
           {category.description && <p style={{ margin: "4px 0 0", maxWidth: 760 }}>{category.description}</p>}
-          <p className="muted" style={{ margin: "4px 0 0" }} data-testid="result-count">
-            {products.length} ürün
-          </p>
         </div>
-        <form>
-          <label className="muted" htmlFor="sirala">
-            Sırala{" "}
-          </label>
-          <select id="sirala" name="sirala" className="oy-select" defaultValue={sort} style={{ width: "auto", minHeight: 40 }}>
-            <option value="">Çok satanlar</option>
-            <option value="fiyat-artan">Fiyat: düşükten yükseğe</option>
-            <option value="fiyat-azalan">Fiyat: yüksekten düşüğe</option>
-            <option value="yeni">En yeniler</option>
-          </select>{" "}
-          <button className="oy-btn oy-btn--outline oy-btn--sm" type="submit">
-            Uygula
-          </button>
-        </form>
       </div>
       {category.children.length > 0 && (
         <nav aria-label="Alt kategoriler" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -73,15 +56,21 @@ export default async function CategoryPage({ params, searchParams }: Props) {
           ))}
         </nav>
       )}
-      {products.length === 0 ? (
-        <p className="muted">Bu kategoride şu an yayında ürün yok.</p>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }} data-testid="product-grid">
-          {products.map((p) => (
-            <ProductCard key={p.id} p={p} />
-          ))}
-        </div>
-      )}
+      <ProductListing r={r} path={`/kategori/${category.slug}`} sp={sp} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Ana sayfa", item: siteUrl() + "/" },
+              ...(category.parent ? [{ "@type": "ListItem", position: 2, name: category.parent.name, item: `${siteUrl()}/kategori/${category.parent.slug}` }] : []),
+              { "@type": "ListItem", position: category.parent ? 3 : 2, name: category.name, item: `${siteUrl()}/kategori/${category.slug}` },
+            ],
+          }).replace(/</g, "\\u003c"),
+        }}
+      />
     </>
   );
 }

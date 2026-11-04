@@ -1,4 +1,7 @@
+import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { getCurrentCustomer } from "@/lib/auth/customer";
+import { TRACK_COOKIE } from "@/lib/site";
 import { formatTL } from "@/lib/money";
 import Flash from "@/components/admin/Flash";
 import { ORDER_STATUS_LABEL } from "@/lib/order-status";
@@ -12,11 +15,13 @@ type SP = Promise<Record<string, string | string[] | undefined>>;
 export default async function TrackPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
   const no = typeof sp.no === "string" ? sp.no.toUpperCase() : "";
-  const e = typeof sp.e === "string" ? sp.e.toLowerCase() : "";
+  // Erişim: ya bu tarayıcıda e-posta ile doğrulanmış sipariş (çerez) ya da siparişin sahibi olan giriş yapmış müşteri
+  const verifiedId = (await cookies()).get(TRACK_COOKIE)?.value ?? "";
+  const customer = await getCurrentCustomer();
   const o =
-    no && e
+    no && (verifiedId || customer)
       ? await prisma.order.findFirst({
-          where: { orderNumber: no, customerEmail: e },
+          where: { orderNumber: no, OR: [...(verifiedId ? [{ id: verifiedId }] : []), ...(customer ? [{ userId: customer.id }] : [])] },
           include: {
             items: true,
             statusHistory: { orderBy: { createdAt: "asc" } },
@@ -35,13 +40,13 @@ export default async function TrackPage({ searchParams }: { searchParams: SP }) 
         </label>
         <label className="oy-field">
           <span className="oy-field__label">E-posta</span>
-          <input className="oy-input" name="email" type="email" defaultValue={e} required />
+          <input className="oy-input" name="email" type="email" required autoComplete="email" />
         </label>
         <button className="oy-btn oy-btn--secondary" type="submit">
           Sorgula
         </button>
       </form>
-      {no && e && !o && <div className="flash err">Sipariş bulunamadı. Sipariş numarası ve e-posta adresini kontrol edin.</div>}
+      {no && !o && (verifiedId || customer) && <div className="flash err">Sipariş bulunamadı. Sipariş numarası ve e-posta adresini kontrol edin.</div>}
       {o && (
         <section className="card" data-testid="track-result">
           <h2>

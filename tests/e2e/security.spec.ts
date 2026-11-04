@@ -56,7 +56,9 @@ test("başkasının sipariş sonucu ve sipariş takibi e-posta olmadan görünt�
   );
   const o = { orderNumber: no };
   expect((await page.goto(`/siparis/${o.orderNumber}/sonuc`))?.status()).toBe(404);
-  await page.goto(`/siparis-takip?no=${o.orderNumber}&e=yanlis@ornek.com`);
+  await page.goto(`/siparis-takip?no=${o.orderNumber}&e=baska@test.local`); // eski biçim: e-posta URL'de olsa bile kabul edilmez
+  await expect(page.getByTestId("track-result")).toHaveCount(0);
+  await page.goto(`/siparis-takip?no=${o.orderNumber}`);
   await expect(page.getByTestId("track-result")).toHaveCount(0);
 });
 

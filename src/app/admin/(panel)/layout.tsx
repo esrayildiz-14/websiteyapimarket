@@ -28,6 +28,7 @@ const NAV: (NavItem & { perm: Permission; any?: Permission[] })[] = [
   { href: "/admin/musteriler", label: "Müşteriler", group: "Satış", perm: "customer.read" },
   { href: "/admin/kampanyalar", label: "Kampanyalar", group: "Satış", perm: "campaign.write" },
   { href: "/admin/icerik", label: "Site içerikleri", group: "Site", perm: "content.write" },
+  { href: "/admin/personel", label: "Personel ve roller", group: "Hesabım", perm: "user.manage" },
   { href: "/admin/guvenlik", label: "Hesap güvenliği (2FA)", group: "Hesabım", perm: "dashboard.view" },
 ];
 

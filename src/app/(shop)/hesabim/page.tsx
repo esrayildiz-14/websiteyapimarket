@@ -4,6 +4,7 @@ import { requireCustomer } from "@/lib/auth/customer";
 import { formatTL } from "@/lib/money";
 import Flash from "@/components/admin/Flash";
 import AddressForm from "@/components/shop/AddressForm";
+import { PasswordForm, ProfileForm } from "@/components/shop/AccountForms";
 import { ORDER_STATUS_LABEL } from "@/lib/order-status";
 import { customerLogoutAction, deleteAddressAction } from "../actions";
 
@@ -44,7 +45,7 @@ export default async function AccountPage({ searchParams }: { searchParams: SP }
               {orders.map((o) => (
                 <tr key={o.id}>
                   <td>
-                    <Link href={`/siparis-takip?no=${o.orderNumber}&e=${encodeURIComponent(o.customerEmail)}`} style={{ fontWeight: 600 }}>
+                    <Link href={`/siparis-takip?no=${o.orderNumber}`} style={{ fontWeight: 600 }} data-testid={`my-order-${o.orderNumber}`}>
                       {o.orderNumber}
                     </Link>
                   </td>
@@ -56,6 +57,14 @@ export default async function AccountPage({ searchParams }: { searchParams: SP }
             </tbody>
           </table>
         )}
+      </section>
+      <section className="card">
+        <h2>Üyelik bilgilerim</h2>
+        <ProfileForm v={{ firstName: c.firstName, lastName: c.lastName, phone: c.phone ?? "" }} />
+      </section>
+      <section className="card">
+        <h2>Şifre değiştir</h2>
+        <PasswordForm />
       </section>
       <section className="card">
         <h2>Adreslerim</h2>

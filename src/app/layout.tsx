@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   title: { default: "Öner Yapı Market", template: "%s – Öner Yapı Market" },
   description: "Yapı market ve hırdavat ürünleri, Türkiye geneli kargo.",
+  openGraph: { siteName: "Öner Yapı Market", locale: "tr_TR", type: "website" },
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

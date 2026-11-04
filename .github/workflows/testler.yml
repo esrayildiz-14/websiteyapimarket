@@ -82,3 +82,65 @@ jobs:
             playwright-report
             test-results
           retention-days: 14
+
+  performans:
+    # Yük testi: üretim derlemesi (next build + next start), 10.000 ve 50.000 ürünle, 100 ve 500 eşzamanlı istemci.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-sifre
+          POSTGRES_DB: oner_yapi_yuk_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:ci-sifre@localhost:5432/oner_yapi_yuk_test?schema=public
+      SEED_ADMIN_EMAIL: admin@oneryapi.local
+      SEED_ADMIN_PASSWORD: ci-yonetici-sifresi-12
+      NEXT_TELEMETRY_DISABLED: "1"
+      PGPASSWORD: ci-sifre
+      RATE_LIMIT_ARAMA: "100000000"
+      RATE_LIMIT_ADRES: "100000000"
+      RATE_LIMIT_POST: "100000000"
+      APP_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npx prisma generate && npx prisma migrate deploy && npx prisma db seed
+      - name: Üretim derlemesi (süre ölçülür)
+        run: |
+          S=$(date +%s); npm run build:test; E=$(date +%s)
+          echo "Derleme süresi: $((E-S)) sn" | tee -a $GITHUB_STEP_SUMMARY
+      - name: 10.000 ürün
+        run: psql -h localhost -U postgres -d oner_yapi_yuk_test -v adet=10000 -v tur=a -f scripts/yuk-verisi.sql
+      - name: Sunucuyu başlat
+        run: |
+          (npx next start -p 3200 > sunucu.log 2>&1 &)
+          for i in $(seq 1 60); do curl -sf http://localhost:3200/ > /dev/null && break; sleep 2; done
+      - name: Yük testi — 10.000 ürün
+        run: |
+          CAT=$(psql -h localhost -U postgres -d oner_yapi_yuk_test -tAc "SELECT slug FROM categories WHERE \"parentId\" IS NOT NULL ORDER BY \"sortOrder\" LIMIT 1")
+          echo "## Yük testi (10.000 ürün)" >> $GITHUB_STEP_SUMMARY
+          for C in 100 500; do
+            node scripts/yuk-testi.mjs http://localhost:3200 $C 20 / /urunler "/kategori/$CAT" /urun/yuk-a-17 "/arama?q=matkap" "/api/adres?il=34" | tee -a yuk.jsonl
+          done
+          node -e 'for (const l of require("fs").readFileSync("yuk.jsonl","utf8").trim().split("\n")) { const r = JSON.parse(l); console.log(`- ${r.concurrency} eşzamanlı: ${r.requests} istek, ${r.rps} istek/sn, p50 ${r.p50} ms, p95 ${r.p95} ms, p99 ${r.p99} ms, hata %${r.errorRate} ${JSON.stringify(r.codes)}`) }' >> $GITHUB_STEP_SUMMARY
+      - name: Yük testi — 50.000 ürün (liste ve arama)
+        run: |
+          psql -h localhost -U postgres -d oner_yapi_yuk_test -v adet=40000 -v tur=b -f scripts/yuk-verisi.sql
+          echo "## Yük testi (50.000 ürün)" >> $GITHUB_STEP_SUMMARY
+          for C in 100; do
+            node scripts/yuk-testi.mjs http://localhost:3200 $C 20 /urunler "/arama?q=matkap" /urun/yuk-b-99 | tee yuk50.jsonl
+          done
+          node -e 'const r = JSON.parse(require("fs").readFileSync("yuk50.jsonl","utf8")); console.log(`- ${r.concurrency} eşzamanlı: ${r.requests} istek, ${r.rps} istek/sn, p50 ${r.p50} ms, p95 ${r.p95} ms, p99 ${r.p99} ms, hata %${r.errorRate} ${JSON.stringify(r.codes)}`)' >> $GITHUB_STEP_SUMMARY
+          for u in / /urunler "/arama?q=matkap" /urun/yuk-b-99; do curl -s -o /dev/null -w "$u tek istek: %{time_total} sn\n" "http://localhost:3200$u"; done | tee -a $GITHUB_STEP_SUMMARY
+      - name: Sunucu kaydı
+        if: always()
+        run: tail -50 sunucu.log

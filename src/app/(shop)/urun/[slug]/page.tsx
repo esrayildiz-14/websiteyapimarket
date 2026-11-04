@@ -22,7 +22,13 @@ async function load(slug: string) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const p = await load((await params).slug);
   if (!p) return { title: "Ürün bulunamadı" };
-  return { title: p.seoTitle || p.name, description: p.seoDescription ?? p.shortDescription ?? undefined, alternates: { canonical: `/urun/${p.slug}` } };
+  const description = p.seoDescription ?? p.shortDescription ?? undefined;
+  return {
+    title: p.seoTitle || p.name,
+    description,
+    alternates: { canonical: `/urun/${p.slug}` },
+    openGraph: { type: "website", title: p.seoTitle || p.name, description, url: `/urun/${p.slug}`, images: p.images[0] ? [{ url: p.images[0].url, alt: p.images[0].alt ?? p.name }] : undefined },
+  };
 }
 
 export default async function ProductPage({ params, searchParams }: Props) {
@@ -35,6 +41,21 @@ export default async function ProductPage({ params, searchParams }: Props) {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: productJsonLd(p, card) }} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { name: "Ana sayfa", item: siteUrl() + "/" },
+              ...(p.category.parent ? [{ name: p.category.parent.name, item: `${siteUrl()}/kategori/${p.category.parent.slug}` }] : []),
+              { name: p.category.name, item: `${siteUrl()}/kategori/${p.category.slug}` },
+              { name: p.name, item: `${siteUrl()}/urun/${p.slug}` },
+            ].map((x, i) => ({ "@type": "ListItem", position: i + 1, ...x })),
+          }).replace(/</g, "\\u003c"),
+        }}
+      />
       <Flash sp={sp} />
       <ol className="oy-crumbs">
         <li>

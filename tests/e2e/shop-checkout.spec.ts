@@ -226,12 +226,25 @@ test.describe("Sipariş ve ödeme", () => {
     expect(mail[0].body).toContain("TR123456789");
     expect(mail[0].body).toContain("https://kargo.example/takip?no=TR123456789");
 
-    await page.goto(`/siparis-takip?no=${orderNo}&e=${encodeURIComponent(email)}`);
-    await expect(page.getByTestId("track-status")).toHaveText("Kargoda");
-    await expect(page.getByTestId("track-number")).toHaveText("TR123456789");
-    // yanlış e-posta ile sipariş görünmez
-    await page.goto(`/siparis-takip?no=${orderNo}&e=baskasi@test.local`);
-    await expect(page.getByTestId("track-result")).toHaveCount(0);
+    // misafir takip: başka bir tarayıcıda (oturumsuz) numara + e-posta ile
+    const guest = await page.context().browser()!.newContext();
+    const g = await guest.newPage();
+    await g.goto("/siparis-takip");
+    await g.getByTestId("track-form").locator('[name="no"]').fill(orderNo);
+    await g.getByTestId("track-form").locator('[name="email"]').fill("baskasi@test.local");
+    await g.getByTestId("track-form").getByRole("button", { name: "Sorgula" }).click();
+    await expect(g.getByTestId("flash-err")).toContainText("Sipariş bulunamadı"); // yanlış e-posta ile görünmez
+    await g.getByTestId("track-form").locator('[name="no"]').fill(orderNo);
+    await g.getByTestId("track-form").locator('[name="email"]').fill(email);
+    await g.getByTestId("track-form").getByRole("button", { name: "Sorgula" }).click();
+    await expect(g.getByTestId("track-status")).toHaveText("Kargoda");
+    await expect(g.getByTestId("track-number")).toHaveText("TR123456789");
+    expect(g.url()).not.toContain("@"); // e-posta adres çubuğuna yazılmaz
+    // e-posta doğrulaması yapmamış başka biri yalnız numarayla göremez
+    const other = await (await page.context().browser()!.newContext()).newPage();
+    await other.goto(`/siparis-takip?no=${orderNo}`);
+    await expect(other.getByTestId("track-result")).toHaveCount(0);
+    await guest.close();
 
     await page.goto("/admin/kargo?sekme=gonderiler");
     const f3 = page.getByTestId(`shipment-form-${ship.id}`);

@@ -49,6 +49,26 @@ export const ROLES: { key: string; name: string; permissions: Permission[] | "AL
     permissions: ["dashboard.view", "product.read", "product.write", "price.write", "category.write", "brand.write", "stock.write", "warehouse.write", "supplier.write", "purchase.write", "purchase.receive", "stockcount.write"],
   },
   {
+    key: "WAREHOUSE_STAFF",
+    name: "Depo Personeli",
+    permissions: ["dashboard.view", "product.read", "stock.write", "warehouse.write", "stockcount.write", "purchase.receive"],
+  },
+  {
+    key: "PURCHASING_STAFF",
+    name: "Satın Alma Personeli",
+    permissions: ["dashboard.view", "product.read", "product.purchase_price", "supplier.write", "purchase.write"],
+  },
+  {
+    key: "FINANCE_STAFF",
+    name: "Finans Personeli",
+    permissions: ["dashboard.view", "product.read", "product.purchase_price", "order.read", "finance.view", "purchase.approve"],
+  },
+  {
+    key: "CUSTOMER_SERVICE",
+    name: "Müşteri Hizmetleri",
+    permissions: ["dashboard.view", "product.read", "order.read", "order.update", "customer.read"],
+  },
+  {
     key: "STORE_STAFF",
     name: "Mağaza Satış Personeli",
     permissions: ["dashboard.view", "product.read", "pos.sell"],
