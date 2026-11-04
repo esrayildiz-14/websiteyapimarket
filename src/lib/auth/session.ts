@@ -109,3 +109,12 @@ export async function requireStaff(permission?: Permission, opts: { allowWithout
   if (permission && !can(user, permission)) redirect("/admin?hata=" + encodeURIComponent("Bu işlem için yetkiniz yok."));
   return user;
 }
+
+/** Listelenen yetkilerden en az birine sahip olmayı gerektirir (ör. tedarik ekranlarını görüntüleme). */
+export async function requireAnyStaff(permissions: Permission[]): Promise<StaffUser> {
+  const user = await requireStaff();
+  if (!permissions.some((p) => can(user, p))) redirect("/admin?hata=" + encodeURIComponent("Bu işlem için yetkiniz yok."));
+  return user;
+}
+
+export const PURCHASING_VIEW: Permission[] = ["supplier.write", "purchase.write", "purchase.approve", "purchase.receive"];

@@ -8,7 +8,7 @@ import { logoutAction } from "../giris/actions";
 export const metadata: Metadata = { title: { default: "Yönetim", template: "%s – Yönetim" }, robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 
-const NAV: (NavItem & { perm: Permission })[] = [
+const NAV: (NavItem & { perm: Permission; any?: Permission[] })[] = [
   { href: "/admin", label: "Dashboard", group: "Genel", perm: "dashboard.view" },
   { href: "/admin/urunler", label: "Ürün yönetimi", group: "Katalog", perm: "product.read" },
   { href: "/admin/urunler/yeni", label: "Yeni ürün ekle", group: "Katalog", perm: "product.write" },
@@ -18,6 +18,8 @@ const NAV: (NavItem & { perm: Permission })[] = [
   { href: "/admin/fiyatlar", label: "Fiyat yönetimi", group: "Katalog", perm: "price.write" },
   { href: "/admin/stok", label: "Stok yönetimi", group: "Katalog", perm: "product.read" },
   { href: "/admin/depolar", label: "Depolar ve transfer", group: "Depo", perm: "product.read" },
+  { href: "/admin/tedarikciler", label: "Tedarikçiler", group: "Tedarik", perm: "supplier.write", any: ["supplier.write", "purchase.write", "purchase.approve", "purchase.receive"] },
+  { href: "/admin/satin-alma", label: "Satın alma ve mal kabul", group: "Tedarik", perm: "purchase.write", any: ["supplier.write", "purchase.write", "purchase.approve", "purchase.receive"] },
   { href: "/admin/siparisler", label: "Siparişler", group: "Satış", perm: "order.read" },
   { href: "/admin/kargo", label: "Kargo yönetimi", group: "Satış", perm: "shipping.write" },
   { href: "/admin/musteriler", label: "Müşteriler", group: "Satış", perm: "customer.read" },
@@ -28,7 +30,7 @@ const NAV: (NavItem & { perm: Permission })[] = [
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const user = await requireStaff(undefined, { allowWithoutMfa: true }); // zorunlu 2FA yönlendirmesi sayfa düzeyinde
-  const items = NAV.filter((n) => can(user, n.perm)).map(({ perm: _p, ...n }) => n);
+  const items = NAV.filter((n) => (n.any ? n.any.some((p) => can(user, p)) : can(user, n.perm))).map(({ perm: _p, any: _a, ...n }) => n);
   return (
     <div className="adm">
       <aside className="adm-side">
