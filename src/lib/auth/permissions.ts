@@ -18,6 +18,7 @@ export const PERMISSIONS = {
   "stockcount.approve": "Stok sayımını onaylama (stok düzeltmesi)",
   "pos.sell": "Mağaza kasası: barkodla satış",
   "pos.refund": "Mağaza kasası: satış iptali ve iade",
+  "finance.view": "Satış, maliyet ve kârlılık raporları",
   "order.read": "Siparişleri görüntüleme",
   "order.update": "Sipariş durumu ve kargo takip no",
   "order.refund": "İptal ve iade",
@@ -38,7 +39,7 @@ export const ROLES: { key: string; name: string; permissions: Permission[] | "AL
     name: "Admin",
     permissions: [
       "dashboard.view", "product.read", "product.write", "product.purchase_price", "price.write", "category.write",
-      "brand.write", "stock.write", "warehouse.write", "supplier.write", "purchase.write", "purchase.approve", "purchase.receive", "stockcount.write", "stockcount.approve", "pos.sell", "pos.refund", "order.read", "order.update", "order.refund", "shipping.write", "customer.read",
+      "brand.write", "stock.write", "warehouse.write", "supplier.write", "purchase.write", "purchase.approve", "purchase.receive", "stockcount.write", "stockcount.approve", "pos.sell", "pos.refund", "finance.view", "order.read", "order.update", "order.refund", "shipping.write", "customer.read",
       "campaign.write", "content.write", "audit.view",
     ],
   },

@@ -67,7 +67,8 @@ export async function completeSale(user: StaffUser, raw: unknown): Promise<SaleR
   const wh = await prisma.warehouse.findUnique({ where: { id: d.warehouseId } });
   if (!wh || !wh.isActive) return { ok: false, message: "Depo bulunamadı veya pasif." };
   const products = await prisma.product.findMany({ where: { id: { in: d.items.map((i) => i.productId) } }, include: { variants: true } });
-  const lines = [];
+  type Line = { productId: string; variantId: string | null; quantity: number; discount: number; name: string; sku: string; unitPrice: number; vatRate: number };
+  const lines: Line[] = [];
   for (const i of d.items) {
     const pr = products.find((x) => x.id === i.productId);
     if (!pr || pr.deletedAt) return { ok: false, message: "Sepette bulunamayan ürün var." };
