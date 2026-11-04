@@ -94,14 +94,11 @@ test.describe("Yönetici iki adımlı doğrulama", () => {
   test("2FA kapatmak için şifre gerekir", async ({ page }) => {
     await q(`DELETE FROM login_attempts WHERE email = $1`, [who.email]);
     await adminLogin(page, who.email, who.password);
+    // daha önce kullanılmamış bir adımın kodu gerekir: gerekirse bir sonraki 30 sn'lik pencere beklenir
+    const last = (await q<{ s: number }>(`SELECT "totpLastStep" AS s FROM users WHERE email = $1`, [who.email]))[0].s;
+    while (step() + 1 <= last) await page.waitForTimeout(2000);
     await page.getByLabel("Doğrulama kodu").fill(code(secret, step() + 1));
     await page.getByRole("button", { name: "Doğrula" }).click();
-    // aynı adım az önce kullanıldıysa bir sonraki pencereyi bekle
-    if (await page.getByTestId("mfa-error").isVisible().catch(() => false)) {
-      await page.waitForTimeout(31_000);
-      await page.getByLabel("Doğrulama kodu").fill(code(secret, step() + 1));
-      await page.getByRole("button", { name: "Doğrula" }).click();
-    }
     await expect(page.getByTestId("admin-user")).toBeVisible();
     await page.goto("/admin/guvenlik");
     const f = page.getByTestId("mfa-disable-form");
